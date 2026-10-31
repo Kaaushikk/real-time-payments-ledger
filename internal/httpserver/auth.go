@@ -13,7 +13,7 @@ import (
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
-	"github.com/beybl/realtime-payments-ledger/internal/authn"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/authn"
 )
 
 type AuthAPI struct {

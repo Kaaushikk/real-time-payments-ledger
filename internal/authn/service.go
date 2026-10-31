@@ -18,15 +18,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/beybl/realtime-payments-ledger/internal/config"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/config"
 )
 
 var (
-	ErrInvalidGrant    = errors.New("invalid_grant")
-	ErrInvalidClient   = errors.New("invalid_client")
-	ErrInvalidRequest  = errors.New("invalid_request")
-	ErrInvalidCreds    = errors.New("invalid credentials")
-	ErrTokenReuse      = errors.New("refresh token reuse detected")
+	ErrInvalidGrant   = errors.New("invalid_grant")
+	ErrInvalidClient  = errors.New("invalid_client")
+	ErrInvalidRequest = errors.New("invalid_request")
+	ErrInvalidCreds   = errors.New("invalid credentials")
+	ErrTokenReuse     = errors.New("refresh token reuse detected")
 )
 
 type Service struct {
@@ -161,7 +161,7 @@ func (s *Service) ParseAccess(token string) (*Claims, error) {
 			return nil, fmt.Errorf("unexpected signing method")
 		}
 		return []byte(s.cfg.JWTSigningKey), nil
-	}, jwt.WithIssuer(s.cfg.JWTIssuer), jwt.WithAudience(s.cfg.JWTAudience))
+	}, jwt.WithIssuer(s.cfg.JWTIssuer), jwt.WithAudience(s.cfg.JWTAudience), jwt.WithExpirationRequired())
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,6 @@
-module github.com/beybl/realtime-payments-ledger
+module github.com/Kaaushikk/real-time-payments-ledger
 
-go 1.23.0
+go 1.26.0
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.2.1

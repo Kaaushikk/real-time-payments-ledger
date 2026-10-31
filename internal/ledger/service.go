@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,9 +16,9 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/beybl/realtime-payments-ledger/internal/idempotency"
-	"github.com/beybl/realtime-payments-ledger/internal/metrics"
-	"github.com/beybl/realtime-payments-ledger/internal/obs"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/idempotency"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/metrics"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/obs"
 )
 
 func prometheusTimer() func() {
@@ -26,9 +27,9 @@ func prometheusTimer() func() {
 }
 
 type Service struct {
-	pool   *pgxpool.Pool
-	keys   *idempotency.Store
-	topic  string
+	pool  *pgxpool.Pool
+	keys  *idempotency.Store
+	topic string
 }
 
 func New(pool *pgxpool.Pool, keys *idempotency.Store, topic string) *Service {
@@ -38,6 +39,9 @@ func New(pool *pgxpool.Pool, keys *idempotency.Store, topic string) *Service {
 func (s *Service) CreateAccount(ctx context.Context, owner uuid.UUID, currency string) (Account, error) {
 	if currency == "" {
 		currency = "USD"
+	}
+	if currency != "USD" {
+		return Account{}, ErrCurrencyMismatch
 	}
 	var a Account
 	err := s.pool.QueryRow(ctx, `
@@ -68,6 +72,9 @@ func (s *Service) GetTransaction(ctx context.Context, id uuid.UUID) (Transaction
 	`, id).Scan(&tx.ID, &tx.Type, &tx.Status, &tx.Amount, &tx.Currency, &tx.Description, &tx.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Transaction{}, ErrAccountNotFound
+	}
+	if err != nil {
+		return Transaction{}, err
 	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT id, account_id, direction, amount_minor
@@ -118,7 +125,6 @@ func (s *Service) Transfer(ctx context.Context, cmd TransferCmd) (TransferResult
 			attribute.String("from", cmd.FromAccountID.String()),
 			attribute.String("to", cmd.ToAccountID.String()),
 			attribute.Int64("amount_minor", cmd.AmountMinor),
-			attribute.String("idempotency_key", cmd.IdempotencyKey),
 		),
 	)
 	defer span.End()
@@ -130,27 +136,9 @@ func (s *Service) Transfer(ctx context.Context, cmd TransferCmd) (TransferResult
 		return TransferResult{}, err
 	}
 
-	fp := cmd.Fingerprint()
-	cached, err := s.keys.Begin(ctx, cmd.IdempotencyKey, fp)
-	if err != nil {
-		err = mapIdempotency(err)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		return TransferResult{}, err
-	}
-	if cached != nil {
-		var tx Transaction
-		if err := json.Unmarshal(cached.Body, &tx); err != nil {
-			return TransferResult{}, err
-		}
-		span.SetAttributes(attribute.Bool("idempotent_replay", true))
-		metrics.Transfers.WithLabelValues("replayed").Inc()
-		return TransferResult{Tx: tx, Replayed: true}, nil
-	}
-
 	var result TransferResult
 	var lastErr error
-	for attempt := 0; attempt < 8; attempt++ {
+	for attempt := 0; attempt < 32; attempt++ {
 		result, lastErr = s.transferOnce(ctx, cmd)
 		if lastErr == nil {
 			break
@@ -159,25 +147,26 @@ func (s *Service) Transfer(ctx context.Context, cmd TransferCmd) (TransferResult
 			break
 		}
 		span.AddEvent("serialization_retry", trace.WithAttributes(attribute.Int("attempt", attempt+1)))
-		time.Sleep(time.Duration(1<<attempt) * time.Millisecond)
+		delay := time.Duration(1<<min(attempt, 8)) * time.Millisecond
+		select {
+		case <-ctx.Done():
+			return TransferResult{}, ctx.Err()
+		case <-time.After(delay):
+		}
 	}
 	if lastErr != nil {
-		_ = s.keys.Fail(ctx, cmd.IdempotencyKey)
 		metrics.Transfers.WithLabelValues("error").Inc()
 		span.RecordError(lastErr)
 		span.SetStatus(codes.Error, lastErr.Error())
 		return TransferResult{}, lastErr
 	}
 
-	body, err := json.Marshal(result.Tx)
-	if err != nil {
-		return TransferResult{}, err
-	}
-	if err := s.keys.Complete(ctx, cmd.IdempotencyKey, 200, body); err != nil {
-		return result, err
-	}
 	span.SetAttributes(attribute.String("transaction_id", result.Tx.ID.String()))
-	metrics.Transfers.WithLabelValues("posted").Inc()
+	if result.Replayed {
+		metrics.Transfers.WithLabelValues("replayed").Inc()
+	} else {
+		metrics.Transfers.WithLabelValues("posted").Inc()
+	}
 	return result, nil
 }
 
@@ -185,11 +174,28 @@ func (s *Service) transferOnce(ctx context.Context, cmd TransferCmd) (TransferRe
 	ctx, span := obs.Tracer().Start(ctx, "ledger.transferOnce")
 	defer span.End()
 
-	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	// Both mutable account rows are locked before checking funds. READ COMMITTED
+	// returns their latest committed values after waiting and avoids SSI retry
+	// storms under hot-account contention. Range-based rules would need review.
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
 		return TransferResult{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Scope keys to the authenticated principal and operation, never globally.
+	receiptKey := cmd.ActorUserID.String() + ":transfer:" + cmd.IdempotencyKey
+	cached, err := s.keys.BeginTx(ctx, tx, receiptKey, cmd.Fingerprint())
+	if err != nil {
+		return TransferResult{}, mapIdempotency(err)
+	}
+	if cached != nil {
+		var posted Transaction
+		if err := json.Unmarshal(cached.Body, &posted); err != nil {
+			return TransferResult{}, err
+		}
+		return TransferResult{Tx: posted, Replayed: true}, nil
+	}
 
 	// Lock rows in UUID order to avoid deadlocks when Alice↔Bob transfer concurrently.
 	ids := []uuid.UUID{cmd.FromAccountID, cmd.ToAccountID}
@@ -207,6 +213,13 @@ func (s *Service) transferOnce(ctx context.Context, cmd TransferCmd) (TransferRe
 	fromAcc := locked[cmd.FromAccountID]
 	toAcc := locked[cmd.ToAccountID]
 
+	if fromAcc.Type != AccountUser || fromAcc.OwnerUserID == nil || *fromAcc.OwnerUserID != cmd.ActorUserID {
+		return TransferResult{}, ErrUnauthorized
+	}
+	if toAcc.Type != AccountUser {
+		return TransferResult{}, ErrUnauthorized
+	}
+
 	if fromAcc.Currency != cmd.Currency || toAcc.Currency != cmd.Currency {
 		return TransferResult{}, ErrCurrencyMismatch
 	}
@@ -214,6 +227,9 @@ func (s *Service) transferOnce(ctx context.Context, cmd TransferCmd) (TransferRe
 		return TransferResult{}, ErrInsufficientFunds
 	}
 
+	if toAcc.Balance > math.MaxInt64-cmd.AmountMinor {
+		return TransferResult{}, ErrAmountOverflow
+	}
 	fromBefore, toBefore := fromAcc.Balance, toAcc.Balance
 	fromAcc.Balance -= cmd.AmountMinor
 	toAcc.Balance += cmd.AmountMinor
@@ -270,11 +286,7 @@ func (s *Service) transferOnce(ctx context.Context, cmd TransferCmd) (TransferRe
 		return TransferResult{}, err
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		return TransferResult{}, err
-	}
-
-	return TransferResult{Tx: Transaction{
+	result := TransferResult{Tx: Transaction{
 		ID:          txID,
 		Type:        "transfer",
 		Status:      "posted",
@@ -286,7 +298,19 @@ func (s *Service) transferOnce(ctx context.Context, cmd TransferCmd) (TransferRe
 			{ID: debitID, AccountID: cmd.FromAccountID, Direction: "debit", Amount: cmd.AmountMinor},
 			{ID: creditID, AccountID: cmd.ToAccountID, Direction: "credit", Amount: cmd.AmountMinor},
 		},
-	}}, nil
+	}}
+	body, err := json.Marshal(result.Tx)
+	if err != nil {
+		return TransferResult{}, err
+	}
+	if err := s.keys.CompleteTx(ctx, tx, receiptKey, 201, body); err != nil {
+		return TransferResult{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return TransferResult{}, err
+	}
+	return result, nil
+
 }
 
 func lockAccount(ctx context.Context, tx pgx.Tx, id uuid.UUID) (Account, error) {
@@ -347,4 +371,10 @@ func (s *Service) MinUserBalance(ctx context.Context) (int64, error) {
 		SELECT COALESCE(MIN(balance_minor), 0) FROM accounts WHERE account_type = 'user'
 	`).Scan(&v)
 	return v, err
+}
+
+func (s *Service) Ready(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	return s.pool.Ping(ctx)
 }

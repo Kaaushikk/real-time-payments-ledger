@@ -16,16 +16,16 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 
-	"github.com/beybl/realtime-payments-ledger/internal/authn"
-	"github.com/beybl/realtime-payments-ledger/internal/config"
-	"github.com/beybl/realtime-payments-ledger/internal/db"
-	"github.com/beybl/realtime-payments-ledger/internal/httpserver"
-	"github.com/beybl/realtime-payments-ledger/internal/idempotency"
-	"github.com/beybl/realtime-payments-ledger/internal/ledger"
-	"github.com/beybl/realtime-payments-ledger/internal/obs"
-	"github.com/beybl/realtime-payments-ledger/internal/outbox"
-	"github.com/beybl/realtime-payments-ledger/internal/seed"
-	"github.com/beybl/realtime-payments-ledger/migrations"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/authn"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/config"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/db"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/httpserver"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/idempotency"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/ledger"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/obs"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/outbox"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/seed"
+	"github.com/Kaaushikk/real-time-payments-ledger/migrations"
 )
 
 func main() {

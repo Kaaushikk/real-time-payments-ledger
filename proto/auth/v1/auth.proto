@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package auth.v1;
 
-option go_package = "github.com/beybl/realtime-payments-ledger/gen/go/auth/v1;authv1";
+option go_package = "github.com/Kaaushikk/real-time-payments-ledger/gen/go/auth/v1;authv1";
 
 service AuthService {
   rpc Token(TokenRequest) returns (TokenResponse);

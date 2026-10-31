@@ -14,7 +14,15 @@ import (
 var Files embed.FS
 
 func Apply(ctx context.Context, pool *pgxpool.Pool) error {
-	if _, err := pool.Exec(ctx, `
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(8317001)`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			filename TEXT PRIMARY KEY,
 			applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -35,7 +43,7 @@ func Apply(ctx context.Context, pool *pgxpool.Pool) error {
 	sort.Strings(names)
 	for _, name := range names {
 		var n int
-		if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM schema_migrations WHERE filename = $1`, name).Scan(&n); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM schema_migrations WHERE filename = $1`, name).Scan(&n); err != nil {
 			return err
 		}
 		if n > 0 {
@@ -45,12 +53,12 @@ func Apply(ctx context.Context, pool *pgxpool.Pool) error {
 		if err != nil {
 			return err
 		}
-		if _, err := pool.Exec(ctx, string(body)); err != nil {
+		if _, err := tx.Exec(ctx, string(body)); err != nil {
 			return fmt.Errorf("apply %s: %w", name, err)
 		}
-		if _, err := pool.Exec(ctx, `INSERT INTO schema_migrations (filename) VALUES ($1)`, name); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO schema_migrations (filename) VALUES ($1)`, name); err != nil {
 			return err
 		}
 	}
-	return nil
+	return tx.Commit(ctx)
 }

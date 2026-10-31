@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package ledger.v1;
 
-option go_package = "github.com/beybl/realtime-payments-ledger/gen/go/ledger/v1;ledgerv1";
+option go_package = "github.com/Kaaushikk/real-time-payments-ledger/gen/go/ledger/v1;ledgerv1";
 
 // HTTP mapping (grpc-gateway compatible):
 //   POST /v1/accounts

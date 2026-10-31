@@ -95,7 +95,9 @@ func reset(base string) {
 		if err != nil {
 			continue
 		}
-		var toxics []struct{ Name string `json:"name"` }
+		var toxics []struct {
+			Name string `json:"name"`
+		}
 		_ = json.NewDecoder(resp.Body).Decode(&toxics)
 		resp.Body.Close()
 		for _, t := range toxics {

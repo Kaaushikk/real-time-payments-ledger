@@ -4,33 +4,56 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"testing/quick"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
+	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/beybl/realtime-payments-ledger/internal/db"
-	"github.com/beybl/realtime-payments-ledger/internal/idempotency"
-	"github.com/beybl/realtime-payments-ledger/internal/ledger"
-	"github.com/beybl/realtime-payments-ledger/internal/seed"
-	"github.com/beybl/realtime-payments-ledger/migrations"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/db"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/idempotency"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/ledger"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/seed"
+	"github.com/Kaaushikk/real-time-payments-ledger/migrations"
 )
 
 func integration(t *testing.T) (*ledger.Service, seed.Demo) {
+	svc, demo, _ := fixture(t)
+	return svc, demo
+}
+
+func fixture(t *testing.T) (*ledger.Service, seed.Demo, *pgxpool.Pool) {
 	t.Helper()
 	url := os.Getenv("DATABASE_URL")
 	if url == "" {
 		t.Skip("DATABASE_URL not set")
 	}
 	ctx := context.Background()
-	pool, err := db.Connect(ctx, url)
+	admin, err := db.Connect(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	schema := "test_" + uuid.New().String()
+	schema = strings.ReplaceAll(schema, "-", "")
+	if _, err := admin.Exec(ctx, `CREATE SCHEMA `+schema); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = admin.Exec(ctx, `DROP SCHEMA `+schema+` CASCADE`); admin.Close() })
+	cfg, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.ConnConfig.RuntimeParams["search_path"] = schema + ",public"
+	cfg.MaxConns = 16
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
+
 	if err := migrations.Apply(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
@@ -38,10 +61,8 @@ func integration(t *testing.T) (*ledger.Service, seed.Demo) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rdb := redis.NewClient(&redis.Options{Addr: getenv("REDIS_ADDR", "localhost:6379")})
-	t.Cleanup(func() { _ = rdb.Close() })
-	keys := idempotency.New(rdb, pool, 24*time.Hour)
-	return ledger.New(pool, keys, "ledger.transactions"), demo
+	keys := idempotency.New(nil, pool, 24*time.Hour)
+	return ledger.New(pool, keys, "ledger.transactions"), demo, pool
 }
 
 func TestConcurrentTransfersNeverNegative(t *testing.T) {
@@ -55,12 +76,15 @@ func TestConcurrentTransfersNeverNegative(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			from, to := demo.AliceAccount, demo.BobAccount
+			actor := demo.AliceUser
 			if i%2 == 1 {
 				from, to = to, from
+				actor = demo.BobUser
 			}
 			_, err := svc.Transfer(ctx, ledger.TransferCmd{
 				IdempotencyKey: fmt.Sprintf("conc-%d-%s", i, uuid.NewString()),
 				FromAccountID:  from,
+				ActorUserID:    actor,
 				ToAccountID:    to,
 				AmountMinor:    1,
 				Currency:       "USD",
@@ -97,6 +121,7 @@ func TestIdempotentReplay(t *testing.T) {
 	cmd := ledger.TransferCmd{
 		IdempotencyKey: "replay-" + uuid.NewString(),
 		FromAccountID:  demo.AliceAccount,
+		ActorUserID:    demo.AliceUser,
 		ToAccountID:    demo.BobAccount,
 		AmountMinor:    7,
 		Currency:       "USD",
@@ -127,13 +152,16 @@ func TestPropertyRandomTransfersConserveSum(t *testing.T) {
 	}
 	fn := func(x uint16) bool {
 		from, to := demo.AliceAccount, demo.BobAccount
+		actor := demo.AliceUser
 		if x%2 == 1 {
 			from, to = to, from
+			actor = demo.BobUser
 		}
 		amt := int64(x%50) + 1
 		_, err := svc.Transfer(ctx, ledger.TransferCmd{
 			IdempotencyKey: uuid.NewString(),
 			FromAccountID:  from,
+			ActorUserID:    actor,
 			ToAccountID:    to,
 			AmountMinor:    amt,
 			Currency:       "USD",

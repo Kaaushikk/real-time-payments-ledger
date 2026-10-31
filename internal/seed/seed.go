@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
@@ -80,6 +81,9 @@ func ensureUserAccount(ctx context.Context, pool *pgxpool.Pool, owner, issuance 
 		return id, nil
 	}
 
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, err
+	}
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return uuid.Nil, err
@@ -120,9 +124,15 @@ func ensureUserAccount(ctx context.Context, pool *pgxpool.Pool, owner, issuance 
 	`, txID, issuance, id); err != nil {
 		return uuid.Nil, err
 	}
+	if _, err := tx.Exec(ctx, `INSERT INTO audit_log
+        (account_id,transaction_id,event_type,balance_before,balance_after,amount_minor)
+		SELECT id,$1::uuid,'seed_funding',balance_minor+1000000,balance_minor,1000000 FROM accounts WHERE id=$2
+		UNION ALL SELECT id,$1::uuid,'seed_funding',0,balance_minor,1000000 FROM accounts WHERE id=$3`,
+		txID, issuance, id); err != nil {
+		return uuid.Nil, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return uuid.Nil, err
 	}
 	return id, nil
 }
-

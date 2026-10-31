@@ -1,8 +1,11 @@
 package httpserver
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,10 +17,12 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/beybl/realtime-payments-ledger/internal/authn"
-	"github.com/beybl/realtime-payments-ledger/internal/ledger"
-	"github.com/beybl/realtime-payments-ledger/internal/obs"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/authn"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/ledger"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/obs"
 )
+
+type principalKey struct{}
 
 type LedgerAPI struct {
 	Ledger *ledger.Service
@@ -30,6 +35,13 @@ func (a LedgerAPI) Handler() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 	mux.Handle("GET /metrics", promhttp.Handler())
+	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+		if err := a.Ledger.Ready(r.Context()); err != nil {
+			writeJSON(w, 503, map[string]string{"status": "unavailable"})
+			return
+		}
+		writeJSON(w, 200, map[string]string{"status": "ready"})
+	})
 	mux.HandleFunc("POST /v1/accounts", a.createAccount)
 	mux.HandleFunc("GET /v1/accounts/{account_id}", a.getAccount)
 	mux.HandleFunc("POST /v1/transfers", a.transfer)
@@ -40,7 +52,7 @@ func (a LedgerAPI) Handler() http.Handler {
 
 func (a LedgerAPI) withAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/healthz" || r.URL.Path == "/metrics" {
+		if r.URL.Path == "/healthz" || r.URL.Path == "/metrics" || r.URL.Path == "/readyz" {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -57,6 +69,12 @@ func (a LedgerAPI) withAuth(next http.Handler) http.Handler {
 		ctx, span := obs.Tracer().Start(r.Context(), "auth.ValidateJWT",
 			trace.WithAttributes(attribute.String("sub", claims.Subject)))
 		span.End()
+		principal, err := uuid.Parse(claims.Subject)
+		if err != nil || principal == uuid.Nil {
+			writeErr(w, 401, ledger.ErrUnauthorized)
+			return
+		}
+		ctx = context.WithValue(ctx, principalKey{}, principal)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -66,18 +84,19 @@ func (a LedgerAPI) createAccount(w http.ResponseWriter, r *http.Request) {
 		OwnerUserID string `json:"owner_user_id"`
 		Currency    string `json:"currency"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := decodeBody(w, r, &body); err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
-	owner, err := uuid.Parse(body.OwnerUserID)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, err)
+	owner := r.Context().Value(principalKey{}).(uuid.UUID)
+	if body.OwnerUserID != "" && body.OwnerUserID != owner.String() {
+		writeErr(w, 403, ledger.ErrUnauthorized)
 		return
 	}
+
 	acc, err := a.Ledger.CreateAccount(r.Context(), owner, body.Currency)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 	writeJSON(w, http.StatusCreated, accountJSON(acc))
@@ -94,6 +113,10 @@ func (a LedgerAPI) getAccount(w http.ResponseWriter, r *http.Request) {
 		writeLedgerErr(w, err)
 		return
 	}
+	if acc.OwnerUserID == nil || *acc.OwnerUserID != r.Context().Value(principalKey{}).(uuid.UUID) {
+		writeErr(w, 404, ledger.ErrAccountNotFound)
+		return
+	}
 	writeJSON(w, http.StatusOK, accountJSON(acc))
 }
 
@@ -105,7 +128,7 @@ func (a LedgerAPI) transfer(w http.ResponseWriter, r *http.Request) {
 		Currency      string `json:"currency"`
 		Description   string `json:"description"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := decodeBody(w, r, &body); err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
@@ -123,12 +146,8 @@ func (a LedgerAPI) transfer(w http.ResponseWriter, r *http.Request) {
 	if key == "" {
 		key = bodyFromQuery(r, "idempotency_key")
 	}
-	actor := uuid.Nil
-	if raw := authn.ParseBearer(r.Header.Get("Authorization")); raw != "" {
-		if c, err := a.Auth.ParseAccess(raw); err == nil {
-			actor, _ = uuid.Parse(c.Subject)
-		}
-	}
+	actor := r.Context().Value(principalKey{}).(uuid.UUID)
+
 	ccy := body.Currency
 	if ccy == "" {
 		ccy = "USD"
@@ -167,6 +186,21 @@ func (a LedgerAPI) getTx(w http.ResponseWriter, r *http.Request) {
 		writeLedgerErr(w, err)
 		return
 	}
+	participant := false
+	for _, entry := range tx.Entries {
+		acc, err := a.Ledger.GetAccount(r.Context(), entry.AccountID)
+		if err != nil {
+			writeLedgerErr(w, err)
+			return
+		}
+		if acc.OwnerUserID != nil && *acc.OwnerUserID == r.Context().Value(principalKey{}).(uuid.UUID) {
+			participant = true
+		}
+	}
+	if !participant {
+		writeErr(w, 404, ledger.ErrAccountNotFound)
+		return
+	}
 	writeJSON(w, http.StatusOK, txJSON(tx))
 }
 
@@ -176,10 +210,19 @@ func (a LedgerAPI) audit(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
+	acc, err := a.Ledger.GetAccount(r.Context(), id)
+	if err != nil {
+		writeLedgerErr(w, err)
+		return
+	}
+	if acc.OwnerUserID == nil || *acc.OwnerUserID != r.Context().Value(principalKey{}).(uuid.UUID) {
+		writeErr(w, 404, ledger.ErrAccountNotFound)
+		return
+	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	events, err := a.Ledger.ListAudit(r.Context(), id, limit)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 	out := make([]map[string]any, 0, len(events))
@@ -249,6 +292,8 @@ func writeErr(w http.ResponseWriter, status int, err error) {
 
 func writeLedgerErr(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, ledger.ErrUnauthorized):
+		writeErr(w, http.StatusForbidden, err)
 	case errors.Is(err, ledger.ErrInsufficientFunds), errors.Is(err, ledger.ErrNegativeBalance):
 		writeErr(w, http.StatusConflict, err)
 	case errors.Is(err, ledger.ErrAccountNotFound):
@@ -257,14 +302,14 @@ func writeLedgerErr(w http.ResponseWriter, err error) {
 		writeErr(w, http.StatusUnprocessableEntity, err)
 	case errors.Is(err, ledger.ErrIdempotencyInFlight):
 		writeErr(w, http.StatusConflict, err)
-	case errors.Is(err, ledger.ErrSameAccount), errors.Is(err, ledger.ErrCurrencyMismatch):
+	case errors.Is(err, ledger.ErrAmountOverflow), errors.Is(err, ledger.ErrSameAccount), errors.Is(err, ledger.ErrCurrencyMismatch):
 		writeErr(w, http.StatusBadRequest, err)
 	default:
-		if strings.Contains(err.Error(), "idempotency key is required") || strings.Contains(err.Error(), "amount must be positive") {
+		if strings.Contains(err.Error(), "idempotency key is required") || strings.Contains(err.Error(), "amount must be positive") || strings.Contains(err.Error(), "currency must be USD") || strings.Contains(err.Error(), "description exceeds") {
 			writeErr(w, http.StatusBadRequest, err)
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
 }
 
@@ -273,4 +318,18 @@ func bodyFromQuery(r *http.Request, k string) string {
 		return v
 	}
 	return r.URL.Query().Get(k)
+}
+
+// Bound decoding and reject unknown/trailing fields instead of silently changing intent.
+func decodeBody(w http.ResponseWriter, r *http.Request, dst any) error {
+	r.Body = http.MaxBytesReader(w, r.Body, 16*1024)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(dst); err != nil {
+		return err
+	}
+	if err := dec.Decode(new(any)); err != io.EOF {
+		return fmt.Errorf("expected one JSON object")
+	}
+	return nil
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/segmentio/kafka-go"
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/beybl/realtime-payments-ledger/internal/obs"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/obs"
 )
 
 type Publisher struct {
