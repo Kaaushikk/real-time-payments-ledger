@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ledger
+spec:
+  replicas: {{ .Values.replicaCount.ledger }}
+  selector:
+    matchLabels: { app: ledger }
+  template:
+    metadata:
+      labels: { app: ledger }
+    spec:
+      containers:
+        - name: ledger
+          image: "{{ .Values.image.registry }}/ledger:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8080
+            - containerPort: 9090
+          env:
+            - name: HTTP_ADDR
+              value: ":8080"
+            - name: GRPC_ADDR
+              value: ":9090"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: ledger-secrets, key: database-url }
+            - name: REDIS_ADDR
+              valueFrom:
+                secretKeyRef: { name: ledger-secrets, key: redis-addr }
+            - name: KAFKA_BROKERS
+              valueFrom:
+                secretKeyRef: { name: ledger-secrets, key: kafka-brokers }
+            - name: JWT_SIGNING_KEY
+              valueFrom:
+                secretKeyRef: { name: ledger-secrets, key: jwt-signing-key }
+            - name: JWT_ISSUER
+              value: {{ .Values.env.jwtIssuer | quote }}
+            - name: JWT_AUDIENCE
+              value: {{ .Values.env.jwtAudience | quote }}
+            - name: KAFKA_TOPIC
+              value: {{ .Values.env.kafkaTopic | quote }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: otel-collector:4317
+          resources:
+            {{- toYaml .Values.resources.ledger | nindent 12 }}
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ledger
+spec:
+  selector: { app: ledger }
+  ports:
+    - name: http
+      port: 8080
+    - name: grpc
+      port: 9090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth
+spec:
+  replicas: {{ .Values.replicaCount.auth }}
+  selector:
+    matchLabels: { app: auth }
+  template:
+    metadata:
+      labels: { app: auth }
+    spec:
+      containers:
+        - name: auth
+          image: "{{ .Values.image.registry }}/auth:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8081
+            - containerPort: 9091
+          env:
+            - name: HTTP_ADDR
+              value: ":8081"
+            - name: GRPC_ADDR
+              value: ":9091"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: ledger-secrets, key: database-url }
+            - name: JWT_SIGNING_KEY
+              valueFrom:
+                secretKeyRef: { name: ledger-secrets, key: jwt-signing-key }
+            - name: JWT_ISSUER
+              value: {{ .Values.env.jwtIssuer | quote }}
+            - name: JWT_AUDIENCE
+              value: {{ .Values.env.jwtAudience | quote }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: otel-collector:4317
+          resources:
+            {{- toYaml .Values.resources.auth | nindent 12 }}
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8081 }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8081 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth
+spec:
+  selector: { app: auth }
+  ports:
+    - name: http
+      port: 8081
+    - name: grpc
+      port: 9091

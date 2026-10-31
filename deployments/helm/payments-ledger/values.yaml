@@ -1,0 +1,21 @@
+replicaCount:
+  ledger: 2
+  auth: 1
+
+image:
+  registry: ghcr.io/beybl/realtime-payments-ledger
+  tag: latest
+  pullPolicy: IfNotPresent
+
+env:
+  jwtIssuer: http://auth:8081
+  jwtAudience: ledger-api
+  kafkaTopic: ledger.transactions
+
+resources:
+  ledger:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: "1", memory: 512Mi }
+  auth:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 500m, memory: 256Mi }

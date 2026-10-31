@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package auth.v1;
+
+option go_package = "github.com/beybl/realtime-payments-ledger/gen/go/auth/v1;authv1";
+
+service AuthService {
+  rpc Token(TokenRequest) returns (TokenResponse);
+  rpc Introspect(IntrospectRequest) returns (IntrospectResponse);
+}
+
+message TokenRequest {
+  string grant_type = 1;
+  string client_id = 2;
+  string code = 3;
+  string redirect_uri = 4;
+  string code_verifier = 5;
+  string refresh_token = 6;
+}
+
+message TokenResponse {
+  string access_token = 1;
+  string token_type = 2;
+  int64 expires_in = 3;
+  string refresh_token = 4;
+  string scope = 5;
+}
+
+message IntrospectRequest {
+  string token = 1;
+}
+
+message IntrospectResponse {
+  bool active = 1;
+  string sub = 2;
+  string client_id = 3;
+  int64 exp = 4;
+}

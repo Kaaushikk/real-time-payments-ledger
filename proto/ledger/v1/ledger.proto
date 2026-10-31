@@ -1,0 +1,93 @@
+syntax = "proto3";
+
+package ledger.v1;
+
+option go_package = "github.com/beybl/realtime-payments-ledger/gen/go/ledger/v1;ledgerv1";
+
+// HTTP mapping (grpc-gateway compatible):
+//   POST /v1/accounts
+//   GET  /v1/accounts/{account_id}
+//   POST /v1/transfers
+//   GET  /v1/transactions/{transaction_id}
+//   GET  /v1/accounts/{account_id}/audit
+service LedgerService {
+  rpc CreateAccount(CreateAccountRequest) returns (Account);
+  rpc GetAccount(GetAccountRequest) returns (Account);
+  rpc Transfer(TransferRequest) returns (TransferResponse);
+  rpc GetTransaction(GetTransactionRequest) returns (Transaction);
+  rpc ListAuditLog(ListAuditLogRequest) returns (ListAuditLogResponse);
+}
+
+message CreateAccountRequest {
+  string owner_user_id = 1;
+  string currency = 2;
+}
+
+message GetAccountRequest {
+  string account_id = 1;
+}
+
+message TransferRequest {
+  string idempotency_key = 1;
+  string from_account_id = 2;
+  string to_account_id = 3;
+  int64 amount_minor = 4;
+  string currency = 5;
+  string description = 6;
+}
+
+message TransferResponse {
+  Transaction transaction = 1;
+  bool replayed = 2;
+}
+
+message GetTransactionRequest {
+  string transaction_id = 1;
+}
+
+message ListAuditLogRequest {
+  string account_id = 1;
+  int32 limit = 2;
+}
+
+message ListAuditLogResponse {
+  repeated AuditEvent events = 1;
+}
+
+message Account {
+  string account_id = 1;
+  string owner_user_id = 2;
+  string currency = 3;
+  int64 balance_minor = 4;
+  int64 version = 5;
+  string account_type = 6;
+}
+
+message JournalEntry {
+  string entry_id = 1;
+  string account_id = 2;
+  string direction = 3;
+  int64 amount_minor = 4;
+}
+
+message Transaction {
+  string transaction_id = 1;
+  string type = 2;
+  string status = 3;
+  int64 amount_minor = 4;
+  string currency = 5;
+  string description = 6;
+  repeated JournalEntry entries = 7;
+  string created_at = 8;
+}
+
+message AuditEvent {
+  int64 id = 1;
+  string account_id = 2;
+  string transaction_id = 3;
+  string event_type = 4;
+  int64 balance_before = 5;
+  int64 balance_after = 6;
+  int64 amount_minor = 7;
+  string created_at = 8;
+}
