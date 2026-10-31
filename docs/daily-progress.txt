@@ -1,0 +1,76 @@
+REAL-TIME PAYMENTS LEDGER - DAILY PROGRESS
+Dates and times use America/Los_Angeles.
+
+Purpose: record actual development, checks, debugging, and publication outcomes.
+This file opens directly in Notepad. Detailed technical notes are in
+docs/development-log.md. Record blocked or missed days honestly.
+
+======================================================================
+2026-10-30 - Foundation checkpoint
+======================================================================
+Goal:
+Start the four-week project with a dependable transfer correctness boundary.
+
+Work completed:
+- Reviewed and preserved the existing uncommitted Go draft.
+- Aligned the module path with Kaaushikk/real-time-payments-ledger.
+- Started Docker and the local PostgreSQL 16 / Redis 7 containers.
+- Moved idempotency receipt creation/completion into the financial transaction.
+- Scoped retry keys to user and operation; fingerprint includes description.
+- Added source ownership and account/audit access checks.
+- Added bounded JSON, input validation, overflow protection and DB readiness.
+- Added deferred balanced-posting checks and append-only TRUNCATE guards.
+- Added funding audit entries and atomic, serialized migration execution.
+- Documented the four-week plan, current limitations and development findings.
+
+Why:
+A network retry or crash must not move money twice. Competing transfers must
+check current balances while holding the relevant locks. Authentication alone
+must not allow one user to spend another user's money.
+
+Debugging and decisions:
+- Fixed PostgreSQL UUID inference in the seed-audit UNION query with a cast.
+- SERIALIZABLE exhausted retries in the 200-goroutine contention test. Changed
+  this two-account transfer path to READ COMMITTED with ordered row locks.
+- Found gRPC payment methods were not registered in the draft; marked them as
+  week 2 work rather than claiming the gateway already worked.
+
+Checks and actual results:
+- go test ./... -count=1 -timeout 180s with DATABASE_URL: PASSED.
+- Ledger package duration in that run: 7.047 seconds (not a load benchmark).
+- 200 competing transfers: correctness test passed.
+- 32 concurrent retries sharing a key: one new posting, remaining calls replay.
+- 24 competing full-balance spends: one succeeds; no overdraw.
+- Ownership, changed-request conflict, old receipt replay, rollback on injected
+  outbox failure, append-only checks and journal reconciliation: passed.
+- go vet ./...: PASSED.
+- Foundation GitHub CI: SUCCESS, including Linux race checks and image builds.
+  https://github.com/Kaaushikk/real-time-payments-ledger/actions/runs/41161990399
+
+GitHub checkpoint:
+- ab894be - Preserve existing payments ledger draft for review.
+- b667301 - Make ledger postings and retry receipts atomic with ownership checks.
+- Both commits pushed to origin/main successfully.
+- Current documentation update adds this daily log; its commit is in git history.
+
+Remaining / next task:
+Continue week 1 with one small useful correctness/test improvement. Review money
+boundary cases and strengthen regression coverage before moving to week 2.
+Do not finish the entire system in one session.
+
+======================================================================
+TEMPLATE FOR FUTURE DAYS (append real entries above or below this template)
+======================================================================
+Date / actual session time:
+Goal:
+Work completed (files/features):
+Why the change was needed:
+Debugging / decisions:
+Commands/checks and actual results:
+Code commit(s):
+Push status / branch / CI link:
+Blockers or approvals needed:
+Next small task:
+
+If no safe push was possible, state why. Never record a push/test as successful
+until confirmed. A later CI result can be appended in the next daily entry.

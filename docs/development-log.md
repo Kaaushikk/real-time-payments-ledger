@@ -46,3 +46,11 @@ reconciliation. These are correctness-test workloads, not throughput benchmarks.
 
 Daily development will proceed one bounded improvement at a time through
 November 27. Initial scope is a foundation checkpoint, not a finished system.
+
+Foundation CI completed successfully, including Linux race checks and both
+container builds:
+https://github.com/Kaaushikk/real-time-payments-ledger/actions/runs/41161990399
+
+Daily plain-text journal: `docs/daily-progress.txt` (open in Notepad). Each session
+records actual changes, reasons, debugging, test results, commit/push status,
+blockers and the next task.

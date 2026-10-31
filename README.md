@@ -7,6 +7,8 @@ concurrency, with event delivery and full observability planned next.
 Read the [complete handoff](docs/project-handoff.md),
 [four-week plan](docs/four-week-plan.md), and [development log](docs/development-log.md).
 
+For a Notepad-friendly daily record, open [daily progress](docs/daily-progress.txt).
+
 ## Core rules
 
 - Integer USD cents; no floating-point money or real payments.
