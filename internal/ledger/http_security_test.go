@@ -31,6 +31,7 @@ func TestHTTPAccountOwnership(t *testing.T) {
 		{"GET", "/v1/accounts/" + d.BobAccount.String(), "", 404},
 		{"GET", "/v1/accounts/" + d.BobAccount.String() + "/audit", "", 404},
 		{"POST", "/v1/accounts", `{"owner_user_id":"` + d.BobUser.String() + `","currency":"USD"}`, 403},
+		{"POST", "/v1/accounts", `{"currency":"EUR"}`, 400},
 		{"POST", "/v1/transfers", `{"from_account_id":"` + d.BobAccount.String() + `","to_account_id":"` + d.AliceAccount.String() + `","amount_minor":1,"currency":"USD"}`, 403},
 		{"POST", "/v1/transfers", `{"unknown":true}`, 400},
 		{"GET", "/readyz", "", 200},

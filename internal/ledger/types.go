@@ -12,6 +12,7 @@ import (
 )
 
 var (
+	ErrInvalidTransfer     = errors.New("invalid transfer")
 	ErrInsufficientFunds   = errors.New("insufficient funds")
 	ErrSameAccount         = errors.New("source and destination must differ")
 	ErrAccountNotFound     = errors.New("account not found")
@@ -81,7 +82,7 @@ func (c TransferCmd) Fingerprint() string {
 
 func (c TransferCmd) Validate() error {
 	if c.IdempotencyKey == "" || len(c.IdempotencyKey) > 255 {
-		return fmt.Errorf("idempotency key is required and must not exceed 255 bytes")
+		return fmt.Errorf("%w: idempotency key is required and must not exceed 255 bytes", ErrInvalidTransfer)
 	}
 	if c.FromAccountID == c.ToAccountID {
 		return ErrSameAccount
@@ -93,13 +94,13 @@ func (c TransferCmd) Validate() error {
 		return ErrAccountNotFound
 	}
 	if c.AmountMinor <= 0 {
-		return fmt.Errorf("amount must be positive")
+		return fmt.Errorf("%w: amount must be positive", ErrInvalidTransfer)
 	}
 	if c.Currency != "USD" {
-		return fmt.Errorf("currency must be USD")
+		return fmt.Errorf("%w: currency must be USD", ErrInvalidTransfer)
 	}
 	if len(c.Description) > 500 {
-		return fmt.Errorf("description exceeds 500 bytes")
+		return fmt.Errorf("%w: description exceeds 500 bytes", ErrInvalidTransfer)
 	}
 	return nil
 }

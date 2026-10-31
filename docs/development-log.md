@@ -54,3 +54,26 @@ https://github.com/Kaaushikk/real-time-payments-ledger/actions/runs/41161990399
 Daily plain-text journal: `docs/daily-progress.txt` (open in Notepad). Each session
 records actual changes, reasons, debugging, test results, commit/push status,
 blockers and the next task.
+
+## October 31, 2026 — stable validation errors
+
+Today's bounded week 1 task was making invalid-request responses reliable.
+Previously, HTTP classification searched error-message text for phrases such as
+"description exceeds". An unrelated internal failure containing that phrase
+could be misreported as a client error. Separately, attempting to create a
+non-USD wallet returned 500 even though unsupported currency is invalid input.
+
+Introduced `ledger.ErrInvalidTransfer`, wrapped validation reasons using `%w`,
+and switched the HTTP boundary to `errors.Is`. Account creation now uses the
+same domain-error mapping as other ledger routes. Unexpected failures still
+produce a generic 500 response without exposing the underlying message.
+
+Added tests for zero/negative amounts, missing keys, unsupported currency,
+wrapped validation errors, JSON error bodies, and an internal error whose message
+resembles a validation error. The PostgreSQL-backed account test now verifies
+that an unsupported wallet currency returns 400.
+
+Focused regressions passed. The full suite passed with the real PostgreSQL
+DATABASE_URL and `-count=1 -timeout 180s`; ledger package duration was 11.711s.
+`go vet ./...` and `git diff --check` also passed. No throughput claim is inferred.
+Next: examine currency/default and money-boundary behavior, keeping work in week 1.

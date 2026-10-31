@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -96,7 +95,7 @@ func (a LedgerAPI) createAccount(w http.ResponseWriter, r *http.Request) {
 
 	acc, err := a.Ledger.CreateAccount(r.Context(), owner, body.Currency)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		writeLedgerErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, accountJSON(acc))
@@ -302,13 +301,9 @@ func writeLedgerErr(w http.ResponseWriter, err error) {
 		writeErr(w, http.StatusUnprocessableEntity, err)
 	case errors.Is(err, ledger.ErrIdempotencyInFlight):
 		writeErr(w, http.StatusConflict, err)
-	case errors.Is(err, ledger.ErrAmountOverflow), errors.Is(err, ledger.ErrSameAccount), errors.Is(err, ledger.ErrCurrencyMismatch):
+	case errors.Is(err, ledger.ErrInvalidTransfer), errors.Is(err, ledger.ErrAmountOverflow), errors.Is(err, ledger.ErrSameAccount), errors.Is(err, ledger.ErrCurrencyMismatch):
 		writeErr(w, http.StatusBadRequest, err)
 	default:
-		if strings.Contains(err.Error(), "idempotency key is required") || strings.Contains(err.Error(), "amount must be positive") || strings.Contains(err.Error(), "currency must be USD") || strings.Contains(err.Error(), "description exceeds") {
-			writeErr(w, http.StatusBadRequest, err)
-			return
-		}
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
 }

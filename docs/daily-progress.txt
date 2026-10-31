@@ -59,6 +59,41 @@ boundary cases and strengthen regression coverage before moving to week 2.
 Do not finish the entire system in one session.
 
 ======================================================================
+2026-10-31 - Stable validation errors
+Session: started 14:32 Pacific; verification completed about 14:54 Pacific.
+======================================================================
+Goal:
+Return reliable client-error responses without relying on error-message wording.
+
+Work completed (one bounded week 1 task):
+- Added the ErrInvalidTransfer domain error and wrapped validation reasons.
+- Replaced HTTP string matching with errors.Is-based classification.
+- Routed account-creation errors through the common ledger error mapper.
+- Added HTTP/validation regressions and a PostgreSQL-backed currency rejection.
+
+Why / debugging:
+- Unsupported wallet currency incorrectly produced HTTP 500 instead of 400.
+- An internal error containing a validation-like phrase could be misclassified
+  and expose its underlying message. Classification now follows error identity.
+- Unknown server failures continue to return a generic JSON error.
+
+Checks and actual results:
+- Focused validation/error regressions: PASSED.
+- Full PostgreSQL suite, go test ./... -count=1 -timeout 180s: PASSED.
+- Ledger package test duration: 11.711s; not a throughput measurement.
+- go vet ./...: PASSED.
+- git diff --check: PASSED.
+
+Commit/push:
+- This entry is included with the validation fix; see its commit in git history.
+- Push and new CI outcomes are confirmed after commit, not assumed here.
+- Previous foundation CI was already confirmed successful on October 30.
+
+Next small task:
+Review currency/default and money-boundary behavior, then add relevant regression
+coverage. Stay within week 1 rather than moving into future milestones early.
+
+======================================================================
 TEMPLATE FOR FUTURE DAYS (append real entries above or below this template)
 ======================================================================
 Date / actual session time:
