@@ -100,7 +100,9 @@ and `git diff --check` passed locally. DATABASE_URL was not set for that local
 run, so database tests were skipped, not validated locally. Docker Desktop failed
 to initialize a local socket and its Linux engine did not start. No data reset
 or socket deletion was performed. The full PostgreSQL and Linux race checks
-will run in GitHub CI for this checkpoint; results are not assumed before CI.
+subsequently PASSED in GitHub CI for code commit `35ead2c`, along with formatting,
+vet, and both container image builds:
+https://github.com/Kaaushikk/real-time-payments-ledger/actions/runs/41355381615
 
 Next small task: strengthen transfer authorization/idempotency isolation tests
 between different users, remaining within week 1. The daily schedule is now a
