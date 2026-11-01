@@ -94,6 +94,42 @@ Review currency/default and money-boundary behavior, then add relevant regressio
 coverage. Stay within week 1 rather than moving into future milestones early.
 
 ======================================================================
+2026-11-01 - Currency defaults and money input boundaries
+Session: around 14:00-14:05 Pacific (PST); continued after user check-in.
+======================================================================
+Goal:
+Make omitted currency consistent across callers and verify money input rejection.
+
+Work completed (one bounded week 1 improvement):
+- Centralized the USD default in Transfer before validation and fingerprinting.
+- Removed duplicate HTTP currency-default logic.
+- Added database replay checks for omitted currency versus explicit USD, both ways.
+- Added rejected-currency checks for unchanged balances/versions and no new
+  transaction, audit, receipt or outbox records; corrected requests may reuse keys.
+- Added HTTP cases rejecting fractional cents and amounts outside int64 range.
+
+Why / debugging:
+REST and direct service callers previously disagreed about an omitted currency.
+Keeping the default in the domain service also keeps retry fingerprints consistent.
+Non-USD and malformed currency codes remain invalid; no FX support was added.
+
+Checks and actual results:
+- Focused local validation/error checks: PASSED.
+- go test ./... -count=1 -timeout 180s without DATABASE_URL: PASSED for local
+  tests; PostgreSQL cases SKIPPED and pending Linux CI verification.
+- go vet ./... and git diff --check: PASSED.
+- Docker failed to initialize a local socket; Linux engine unavailable.
+  No reset or data deletion was attempted. Use CI's PostgreSQL service for checks.
+
+Commit/push:
+This entry accompanies the currency fix; commit and confirmed CI outcome are
+available in Git history/Actions after publication. No CI success assumed here.
+October 31 checkpoint f27dc16 was confirmed successful in GitHub CI.
+
+Next small task:
+Strengthen cross-user authorization and idempotency isolation regressions.
+
+======================================================================
 TEMPLATE FOR FUTURE DAYS (append real entries above or below this template)
 ======================================================================
 Date / actual session time:

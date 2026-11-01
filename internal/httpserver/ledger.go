@@ -147,16 +147,12 @@ func (a LedgerAPI) transfer(w http.ResponseWriter, r *http.Request) {
 	}
 	actor := r.Context().Value(principalKey{}).(uuid.UUID)
 
-	ccy := body.Currency
-	if ccy == "" {
-		ccy = "USD"
-	}
 	res, err := a.Ledger.Transfer(r.Context(), ledger.TransferCmd{
 		IdempotencyKey: key,
 		FromAccountID:  from,
 		ToAccountID:    to,
 		AmountMinor:    body.AmountMinor,
-		Currency:       ccy,
+		Currency:       body.Currency,
 		Description:    body.Description,
 		ActorUserID:    actor,
 	})

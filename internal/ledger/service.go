@@ -118,6 +118,11 @@ func (s *Service) ListAudit(ctx context.Context, accountID uuid.UUID, limit int)
 }
 
 func (s *Service) Transfer(ctx context.Context, cmd TransferCmd) (TransferResult, error) {
+	// Normalize before validation and fingerprinting so every transport shares
+	// the same default and an omitted currency replays an explicit USD request.
+	if cmd.Currency == "" {
+		cmd.Currency = "USD"
+	}
 	timer := prometheusTimer()
 	defer timer()
 	ctx, span := obs.Tracer().Start(ctx, "ledger.Transfer",

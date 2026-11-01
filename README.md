@@ -12,6 +12,8 @@ For a Notepad-friendly daily record, open [daily progress](docs/daily-progress.t
 ## Core rules
 
 - Integer USD cents; no floating-point money or real payments.
+- Omitted transfer currency defaults to USD before validation and fingerprinting;
+  non-USD codes, fractional cents and amounts outside int64 range are rejected.
 - Non-negative user wallets; issuance offsets demo funding.
 - Two balanced entries per posting, validated at commit.
 - READ COMMITTED with ordered FOR UPDATE locks for two-account transfers.

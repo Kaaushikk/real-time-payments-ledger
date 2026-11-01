@@ -77,3 +77,31 @@ Focused regressions passed. The full suite passed with the real PostgreSQL
 DATABASE_URL and `-count=1 -timeout 180s`; ledger package duration was 11.711s.
 `go vet ./...` and `git diff --check` also passed. No throughput claim is inferred.
 Next: examine currency/default and money-boundary behavior, keeping work in week 1.
+
+
+## November 1, 2026 — currency defaults and money input boundaries
+
+Continued the week 1 correctness milestone with one small change. The REST route
+defaulted an omitted currency to USD, but the underlying Transfer service rejected
+it. Moved this normalization into Transfer, before validation and fingerprinting,
+so service callers and HTTP requests follow the same contract. Removed the
+duplicated HTTP default. Unsupported currencies, lowercase and whitespace-padded
+codes remain invalid; this does not introduce currency conversion.
+
+Added PostgreSQL regressions that replay omitted currency against explicit USD
+in both directions and check that only two intended postings affect the source
+balance. Another regression checks rejected currencies leave balances, versions,
+journal transactions, audit records, outbox and idempotency receipts unchanged,
+then confirms a corrected request can reuse the rejected request's key. Added
+HTTP cases rejecting fractional cents and an amount above signed int64 range.
+
+Focused local checks passed. `go test ./... -count=1 -timeout 180s`, `go vet ./...`
+and `git diff --check` passed locally. DATABASE_URL was not set for that local
+run, so database tests were skipped, not validated locally. Docker Desktop failed
+to initialize a local socket and its Linux engine did not start. No data reset
+or socket deletion was performed. The full PostgreSQL and Linux race checks
+will run in GitHub CI for this checkpoint; results are not assumed before CI.
+
+Next small task: strengthen transfer authorization/idempotency isolation tests
+between different users, remaining within week 1. The daily schedule is now a
+check-in only; project work starts after a user message.
