@@ -107,3 +107,38 @@ https://github.com/Kaaushikk/real-time-payments-ledger/actions/runs/41355381615
 Next small task: strengthen transfer authorization/idempotency isolation tests
 between different users, remaining within week 1. The daily schedule is now a
 check-in only; project work starts after a user message.
+
+
+## November 3, 2026 — cross-user retry isolation
+
+Added three PostgreSQL-backed regressions in `internal/ledger/isolation_test.go`
+to verify the existing user-scoped durable-idempotency boundary. This checkpoint
+adds correctness evidence; it does not add a new payment feature or change the
+posting implementation.
+
+The concurrent case starts eight calls per user against the same raw retry key.
+Alice sends 11 minor units and Bob sends 7 in the opposite direction. Assertions
+require a distinct transaction for each user, exactly one fresh response per
+user, a net four-unit movement, two receipts/events and four journal/audit rows.
+This is a correctness scenario, not a throughput benchmark.
+
+The authorization case copies Alice's exact request but authenticates it as Bob,
+both before and after Alice's posting. It requires rejection without a returned
+transaction or changes to either balance, version, receipt, journal, audit or
+outbox counts. A rejected attempt must not reserve the key: Bob can subsequently
+use the same raw key for his own authorized transfer, and Alice can still replay
+her original receipt. The HTTP case uses separately signed test tokens to verify
+403 rejection, distinct 201 postings, and each user's own 200 replay. Rejected
+responses must not expose cached transaction details.
+
+Local `go test ./... -count=1 -timeout 180s` and `go vet ./...` passed. No local
+DATABASE_URL is configured, so PostgreSQL cases were skipped locally. Docker's
+Linux engine pipe remains unavailable; no reset or data deletion was attempted.
+The existing GitHub Actions job runs all tests against PostgreSQL with the Linux
+race detector, then builds both service images. Its outcome is pending at this
+commit and must be checked before calling this milestone verified.
+
+November 2 had a check-in reminder but no development session. The unfinished
+isolation task was carried forward to today's user-started session. The personal
+task tracker remains local and ignored by Git. Next: money boundary cases,
+including exact-balance spending and destination overflow, within week 1.

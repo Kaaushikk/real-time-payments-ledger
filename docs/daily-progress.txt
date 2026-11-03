@@ -149,3 +149,46 @@ Next small task:
 
 If no safe push was possible, state why. Never record a push/test as successful
 until confirmed. A later CI result can be appended in the next daily entry.
+
+======================================================================
+2026-11-03 - Cross-user retry isolation
+Session: started about 15:48 PST; pre-push checks recorded 15:53 PST.
+======================================================================
+Goal:
+Verify that retry keys belong to the authenticated user and cannot bypass
+source-wallet ownership checks.
+
+Work completed:
+- Added internal/ledger/isolation_test.go with three PostgreSQL regressions.
+- Concurrent scenario: two users, one raw key, eight calls each, two postings.
+- Checked exact balance/version and receipt/journal/audit/outbox counts.
+- Tried another user's identical request before and after the owner's posting;
+  asserted rejection without financial side effects or cached transaction data.
+- Checked that rejected attempts do not consume a user's key and that each
+  user's original receipt still replays independently.
+- Exercised HTTP with separate user tokens: 403 for unauthorized spending,
+  201 for independent postings, and 200 for each user's own replay.
+- Updated the local-only task tracker; no tracker file is staged or published.
+
+Why / debugging:
+A globally shared retry cache could return another user's transaction before
+ownership checks. These regressions protect the existing principal-scoped design.
+No production-code defect was identified during local checks. Database behavior
+still requires the real PostgreSQL CI run; test compilation alone is insufficient.
+
+Commands and actual local results:
+- gofmt -w internal/ledger/isolation_test.go: completed.
+- go test ./... -count=1 -timeout 180s: PASSED; database tests SKIPPED locally.
+- go vet ./...: PASSED.
+- docker info: Linux engine pipe unavailable; no database reset attempted.
+- git diff --check: PASSED before documentation; checked again before commit.
+
+Publication status at this entry:
+This journal accompanies the implementation commit. Its code hash and push/CI
+outcome are confirmed after publication in the private tracker and session report;
+no successful remote test or push is assumed here. Public follow-up evidence can
+be recorded in the next actual development entry.
+
+Scheduling / next task:
+November 2 was a reminder-only day, with no development or push. This session
+carries its unfinished task forward honestly. Next: W1-D5 money boundaries.
