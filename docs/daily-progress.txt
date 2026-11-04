@@ -192,3 +192,50 @@ be recorded in the next actual development entry.
 Scheduling / next task:
 November 2 was a reminder-only day, with no development or push. This session
 carries its unfinished task forward honestly. Next: W1-D5 money boundaries.
+
+======================================================================
+2026-11-04 - Money boundaries and overflow recovery
+Session: started about 13:47 PST; pre-push checks recorded 13:51 PST.
+======================================================================
+Goal:
+Verify exact-balance spending and integer limits without partial financial state.
+
+Previous checkpoint confirmed:
+- fabf33a is on origin/main. Its PostgreSQL/race checks and both service image
+  builds PASSED: https://github.com/Kaaushikk/real-time-payments-ledger/actions/runs/41742651003
+- Updated the personal tracker with that verified result; no backdated work.
+
+Work completed:
+- Added internal/ledger/money_boundaries_test.go with three database regressions.
+- Exact-balance spend leaves zero, original receipt replays, new spend rejects.
+- Invalid/negative/zero and unaffordable large amounts leave no partial state;
+  a corrected request can reuse the key after rejection.
+- Destination can reach MaxInt64, rejects overflow, replays its old receipt,
+  and accepts the rejected request/key after another transfer makes room.
+- Test-only funding creates balanced journal and audit records in an isolated
+  schema; issuance reaches MinInt64 while total balances remain zero.
+- Reconciled account balances with journal entries using numeric aggregation.
+- Replanned remaining week 1 checklist dates in the local-only tracker.
+
+Why / debugging:
+Representable integers can still be unaffordable or overflow a destination.
+Rejection must roll back the receipt and every financial side effect. A valid
+receipt must remain replayable after balances change. Extreme fixture setup must
+also conserve money, rather than bypassing the ledger with unmatched balances.
+No production-code defect was identified by local checks; real DB CI is required.
+
+Commands and actual local results:
+- gofmt -w internal/ledger/money_boundaries_test.go: completed.
+- go test ./... -count=1 -timeout 180s: PASSED; database cases SKIPPED locally.
+- Focused verbose invocation of the three new cases: SKIPPED without DATABASE_URL.
+- go vet ./... and git diff --check: PASSED.
+- docker info: Linux engine pipe unavailable; no reset/data deletion attempted.
+
+Publication at entry time:
+This entry accompanies the test commit. Remote push, PostgreSQL/race checks and
+service builds are verified after publication and recorded in the private tracker
+and session report. No pending remote outcome is assumed successful here.
+
+Next small task:
+W1-D6 journal integrity cases on November 5 after user check-in. Personal task
+tracking stays ignored locally; public development/debugging notes accompany code.

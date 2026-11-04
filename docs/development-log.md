@@ -142,3 +142,44 @@ November 2 had a check-in reminder but no development session. The unfinished
 isolation task was carried forward to today's user-started session. The personal
 task tracker remains local and ignored by Git. Next: money boundary cases,
 including exact-balance spending and destination overflow, within week 1.
+
+
+## November 4, 2026 — money boundaries and overflow recovery
+
+First reconfirmed that November 3's `fabf33a` is on origin/main and its full
+PostgreSQL/race suite and both image builds passed:
+https://github.com/Kaaushikk/real-time-payments-ledger/actions/runs/41742651003
+The private tracker still showed that checkpoint pending, so its evidence was
+brought up to date. No work was backdated.
+
+Added three regressions in `internal/ledger/money_boundaries_test.go`:
+
+- Spending the exact available balance succeeds once, leaves the source at zero,
+  and remains replayable even though that wallet can no longer fund a new spend.
+- Minimum int64, negative and zero amounts are invalid. One above the available
+  balance and MaxInt64 are valid integer inputs but unaffordable in the ordinary
+  fixture. Rejection leaves balances, versions, receipts, journal, audit and
+  outbox counts unchanged; a corrected request may reuse the rejected key.
+- A destination can reach exactly MaxInt64. Another unit fails with the domain
+  overflow error without partial changes. After a reverse transfer makes room,
+  the previously rejected request/key can succeed. The original successful
+  receipt also replays safely while the destination is full.
+
+The extreme fixture leaves two units with Alice and uses a balanced test-only
+deposit to bring Bob to MaxInt64-1. The issuance balance reaches MinInt64, so
+the setup still conserves money and every balance matches its journal. Funding
+exists only inside the generated test schema; no funding endpoint was added.
+Reconciliation uses PostgreSQL NUMERIC arithmetic to avoid overflowing an
+intermediate sum while checking int64 account balances.
+
+`gofmt`, `go test ./... -count=1 -timeout 180s`, `go vet ./...` and the diff check
+passed locally. The focused invocation explicitly skipped all three new cases
+because DATABASE_URL is unset. Docker's Linux engine remains unavailable; no
+reset or deletion was attempted. Real PostgreSQL, Linux race and image-build
+results are pending the existing GitHub Actions job at commit time. These are
+boundary-correctness tests, not performance measurements. No production-code
+defect has been demonstrated by local checks alone.
+
+Next bounded task: journal integrity cases on November 5. Migration/retry review
+and the weekly acceptance review are planned for Friday; any unfinished work
+must be carried forward and reflected accurately.
