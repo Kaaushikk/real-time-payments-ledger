@@ -25,7 +25,7 @@ func integration(t *testing.T) (*ledger.Service, seed.Demo) {
 	return svc, demo
 }
 
-func fixture(t *testing.T) (*ledger.Service, seed.Demo, *pgxpool.Pool) {
+func unmigratedPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	url := os.Getenv("DATABASE_URL")
 	if url == "" {
@@ -54,6 +54,13 @@ func fixture(t *testing.T) (*ledger.Service, seed.Demo, *pgxpool.Pool) {
 	}
 	t.Cleanup(pool.Close)
 
+	return pool
+}
+
+func fixture(t *testing.T) (*ledger.Service, seed.Demo, *pgxpool.Pool) {
+	t.Helper()
+	pool := unmigratedPool(t)
+	ctx := context.Background()
 	if err := migrations.Apply(ctx, pool); err != nil {
 		t.Fatal(err)
 	}

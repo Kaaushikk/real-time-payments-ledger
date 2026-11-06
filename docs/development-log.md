@@ -223,3 +223,37 @@ existing fixture. The local PostgreSQL container remains running for development
 Next: November 6 migration/retry review and week 1 acceptance/reflection. API
 contracts, identity hardening and the later event/telemetry milestones remain
 on their respective weeks. The personal task tracker remains ignored locally.
+
+
+## November 6, 2026 — migration and lost-response acceptance checks
+
+Confirmed November 5's `749bfc9` and its successful PostgreSQL/race checks and
+both service builds:
+https://github.com/Kaaushikk/real-time-payments-ledger/actions/runs/42168512064
+
+Extracted the existing isolated-schema setup into `unmigratedPool`, preserving
+the ordinary fixture's migration/seed behavior. This lets the new migration test
+begin with an empty schema instead of exercising only an already migrated one.
+Eight callers begin Apply from the same gate. The test requires all to succeed
+and every embedded SQL migration to have one record. After seeding and posting a
+transfer, three repeated Apply calls must preserve migration timestamps, ledger
+records and the original durable receipt. Reconciliation checks the journal and
+total balances afterward.
+
+Added an in-process HTTP acceptance scenario. A response writer returns a closed-
+pipe error after the handler commits a transfer. The test checks the committed
+side effects, constructs fresh ledger/store objects, and retries the original
+request. It requires HTTP 200 replay of the persisted transaction, HTTP 422 for a
+changed body, HTTP 403 for unauthorized spending, and HTTP 409 for overspending,
+without any further financial changes. The audit endpoint must show exactly one
+record for the transfer with matching before/after balances. This simulates a
+failed response write; it is not a real TCP fault or a process-crash experiment.
+
+Docker's Linux engine pipe was unavailable today. Attempted a normal background
+Docker Desktop start; the engine remained unavailable. No reset, volume deletion,
+process termination or unrelated database use was attempted. Local Go compilation,
+non-database tests, vet and formatting/diff checks passed; the two new database
+tests explicitly skipped without DATABASE_URL. PostgreSQL/race checks and image
+builds are pending GitHub CI at this commit. Week 1 acceptance is only complete
+after that run passes; verified results will be recorded in a separate acceptance
+document after CI. The personal daily tracker remains excluded from Git.

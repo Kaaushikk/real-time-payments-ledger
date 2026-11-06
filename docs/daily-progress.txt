@@ -287,3 +287,46 @@ is not assumed here. The PostgreSQL container remains running for development.
 Next small task:
 November 6: migration/retry recovery review and week 1 acceptance/reflection,
 using verified work only. Later milestones remain on their planned weeks.
+
+======================================================================
+2026-11-06 - Migration and lost-response acceptance
+Session: started about 15:41 PST; pre-push checks recorded 15:46 PST.
+======================================================================
+Goal:
+Finish week 1 migration/retry checks and exercise transfer/replay/rejection,
+audit lookup and reconciliation through the current HTTP handler.
+
+Work completed:
+- Extracted unmigratedPool from the shared fixture, retaining generated-schema
+  isolation/cleanup. Existing tests still migrate and seed as before.
+- Added a fresh-schema test with eight simultaneous migration callers.
+- Verified in the test contract that migration records, timestamps, financial
+  records and the replay receipt survive three later migration applications.
+- Added an HTTP response-write failure simulation after a committed transfer.
+- Constructed fresh ledger/store objects and tested persisted receipt recovery.
+- Included changed-body, unauthorized and insufficient-funds rejection, a single
+  matching audit record, and journal/balance reconciliation.
+- Updated the local-only tracker; no private tracker file is staged.
+
+Why / debugging:
+Running a migration twice on a warm database does not prove first-start safety.
+A client missing a response must be able to retry a committed request safely.
+The failure simulation is inside the HTTP handler; TCP faults and actual process
+crashes remain outside this test's evidence and belong to later experiments.
+
+Commands and actual local results:
+- Docker engine unavailable; normal background Docker Desktop start did not
+  expose the Linux engine. No reset/deletion or unrelated database use.
+- gofmt: completed for the fixture refactor and new recovery test file.
+- go test ./... -count=1 -timeout 180s: PASSED for local tests; DB cases SKIPPED.
+- Focused verbose migration/HTTP acceptance invocation: SKIPPED without DATABASE_URL.
+- go vet ./... and git diff --check: PASSED.
+
+Previous publication confirmed:
+749bfc9 is on main; PostgreSQL/race checks and both image builds passed:
+https://github.com/Kaaushikk/real-time-payments-ledger/actions/runs/42168512064
+
+Current publication at entry time:
+Database acceptance and Linux race checks require CI verification after this
+commit is pushed. Final acceptance evidence and any failures will be documented
+after observing the run; pending outcomes are not assumed successful.
