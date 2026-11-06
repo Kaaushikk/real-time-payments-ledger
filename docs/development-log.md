@@ -257,3 +257,19 @@ tests explicitly skipped without DATABASE_URL. PostgreSQL/race checks and image
 builds are pending GitHub CI at this commit. Week 1 acceptance is only complete
 after that run passes; verified results will be recorded in a separate acceptance
 document after CI. The personal daily tracker remains excluded from Git.
+
+
+### November 6 acceptance outcome
+
+The full PostgreSQL suite and Linux race checks **passed** for code commit
+`f105388`, including the fresh concurrent migration and lost-response HTTP cases.
+Formatting/vet and both service image builds also passed:
+https://github.com/Kaaushikk/real-time-payments-ledger/actions/runs/42314059762
+
+Recorded the scope, test mapping, reproduction steps and limitations in
+[week 1 acceptance](week-1-acceptance.md). This closes the week 1 engineering
+checkpoint. No production-code change was required by today's recovery cases.
+Docker availability is again a local environment limitation; database behavior
+was verified in CI, not represented as locally tested today. Next: week 2 API
+contracts and identity hardening. The weekly reflection was drafted in the chat;
+external form submission is controlled by the user and is not independently verified.

@@ -330,3 +330,17 @@ Current publication at entry time:
 Database acceptance and Linux race checks require CI verification after this
 commit is pushed. Final acceptance evidence and any failures will be documented
 after observing the run; pending outcomes are not assumed successful.
+
+November 6 final acceptance outcome (15:50 PST):
+- Recovery/fixture code committed as f105388 and pushed to origin/main.
+- Full PostgreSQL tests, Linux race detector, formatting and vet: PASSED in CI.
+- Ledger and auth image builds: PASSED in CI.
+- Verified run: https://github.com/Kaaushikk/real-time-payments-ledger/actions/runs/42314059762
+- Added docs/week-1-acceptance.md with requirement/test mapping, reproducible
+  commands, exact scope of the lost-response experiment, and remaining milestones.
+- README now identifies week 1 as verified and links the acceptance evidence.
+- These follow-up notes document the observed results. Their publication is
+  confirmed after the documentation commit; no extra tests are needed for prose.
+- Week 1 engineering acceptance is complete. Reflection text was drafted in the
+  chat; external form submission is user-controlled and not independently verified.
+- Next small task: W2-D1 reproducible Protobuf generation after user check-in.

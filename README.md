@@ -2,12 +2,14 @@
 
 A four-week Go project for correct simulated transfers under retries and
 concurrency, with event delivery and full observability planned next.
-**Status: week 1 foundation; other components include unverified draft scaffolds.**
+**Status: week 1 correctness milestone verified; API/identity, event/telemetry, and failure/deployment milestones remain planned.**
 
 Read the [complete handoff](docs/project-handoff.md),
 [four-week plan](docs/four-week-plan.md), and [development log](docs/development-log.md).
 
 For a Notepad-friendly daily record, open [daily progress](docs/daily-progress.txt).
+
+See [Week 1 acceptance evidence and reproduction steps](docs/week-1-acceptance.md).
 
 ## Core rules
 
