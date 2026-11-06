@@ -239,3 +239,51 @@ and session report. No pending remote outcome is assumed successful here.
 Next small task:
 W1-D6 journal integrity cases on November 5 after user check-in. Personal task
 tracking stays ignored locally; public development/debugging notes accompany code.
+
+======================================================================
+2026-11-05 - Journal integrity and complete rollback
+Session: started about 18:37 PST; pre-push checks recorded 21:27 PST.
+======================================================================
+Goal:
+Confirm that malformed journals cannot commit and cannot leave partial money
+movements, audit records, retry receipts or events behind.
+
+Work completed:
+- Added internal/ledger/journal_integrity_test.go.
+- Eight malformed cases: no entries, one entry, unbalanced amounts, two debits,
+  wrong transaction amount, currency mismatch, same account, four balanced rows.
+- Staged every posting side effect, then required error 23514 specifically at
+  commit and checked complete rollback and journal/balance reconciliation.
+- Verified an extra balanced pair cannot extend a posted transaction; its
+  original details and replay receipt remain intact.
+- Started only this project's existing PostgreSQL container. Initial readiness
+  was negative during startup; the next check succeeded. No reset/data deletion.
+- Updated the local-only tracker; no tracker contents are staged or published.
+
+Why / debugging:
+Balanced totals alone do not establish a valid two-entry posting. Amounts,
+currencies and distinct accounts must agree with the transaction header. Tests
+also check the commit boundary so unrelated SQL errors cannot masquerade as
+correct journal validation. Existing constraints passed; no production fix needed.
+
+Commands and actual results:
+- docker info: engine available; docker start project PostgreSQL: completed.
+- pg_isready: initially starting/rejecting, then accepting connections.
+- gofmt -w internal/ledger/journal_integrity_test.go: completed.
+- Focused verbose PostgreSQL tests: PASSED, ledger package 5.430s.
+- go test ./... -count=1 -timeout 180s with local DATABASE_URL: PASSED;
+  ledger package 18.426s; database cases executed, not skipped.
+- go vet ./... and git diff --check: PASSED.
+
+Previous publication confirmed:
+1dfede7 is on main; PostgreSQL/race checks and both builds passed:
+https://github.com/Kaaushikk/real-time-payments-ledger/actions/runs/41919940618
+
+Current publication at entry time:
+This entry accompanies today's test commit. Push and Linux CI outcomes will be
+confirmed after publication in the private tracker and session report; success
+is not assumed here. The PostgreSQL container remains running for development.
+
+Next small task:
+November 6: migration/retry recovery review and week 1 acceptance/reflection,
+using verified work only. Later milestones remain on their planned weeks.

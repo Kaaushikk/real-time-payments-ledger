@@ -183,3 +183,43 @@ defect has been demonstrated by local checks alone.
 Next bounded task: journal integrity cases on November 5. Migration/retry review
 and the weekly acceptance review are planned for Friday; any unfinished work
 must be carried forward and reflected accurately.
+
+
+## November 5, 2026 — deferred journal integrity
+
+Confirmed November 4's `1dfede7` and its successful PostgreSQL/race checks and
+both service builds:
+https://github.com/Kaaushikk/real-time-payments-ledger/actions/runs/41919940618
+
+Docker was available at session start. Started the existing project PostgreSQL
+container, preserving its data. The first readiness probe rejected connections
+during startup; the subsequent probe succeeded. No reset, volume deletion or
+change to the unrelated running database was needed.
+
+Added `internal/ledger/journal_integrity_test.go`. Eight malformed postings cover
+missing entries, a single entry, unequal amounts, two debits, a balanced pair
+with the wrong transaction amount, currency mismatch, the same account on both
+sides, and four balanced entries. Each test deliberately stages balances,
+versions, journal rows, audit records, an outbox event and a processing receipt.
+It then requires PostgreSQL check-constraint error 23514 at COMMIT, not an earlier
+SQL or connection error, and verifies that every staged financial side effect
+was rolled back. Existing balances must still match the journal and sum to zero.
+
+A separate regression starts with a valid service transfer, tries to append an
+extra balanced pair, and requires rejection at commit. It verifies the original
+transaction's full content is unchanged and its original receipt still replays
+without changing balances or records. Deferred validation allows the two valid
+entries to be assembled in one transaction while enforcing completeness at its
+boundary. No production-code change was required for these cases.
+
+Focused PostgreSQL checks passed locally (ledger package 5.430s). The complete
+`go test ./... -count=1 -timeout 180s` suite also passed with DATABASE_URL set;
+ledger package duration was 18.426s. `go vet ./...`, formatting and diff checks
+passed. These durations describe this local correctness test run, not throughput.
+Linux race checks and image builds remain pending CI at commit time. Generated
+test schemas isolate all deliberately invalid data and are cleaned up by the
+existing fixture. The local PostgreSQL container remains running for development.
+
+Next: November 6 migration/retry review and week 1 acceptance/reflection. API
+contracts, identity hardening and the later event/telemetry milestones remain
+on their respective weeks. The personal task tracker remains ignored locally.
