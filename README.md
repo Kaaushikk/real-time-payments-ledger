@@ -38,6 +38,22 @@ Without DATABASE_URL, database tests are skipped, not passed. Tests create isola
 generated schemas. Stop local dependencies without deleting data:
 `docker compose stop postgres redis`.
 
+## Generate the Protobuf Go packages
+
+From the repository root, run `make proto` or this command in PowerShell:
+
+```powershell
+go run github.com/bufbuild/buf/cmd/buf@v1.50.0 generate
+```
+
+Buf reads the ledger and auth definitions under `proto/`. The pinned Go plugins
+in `buf.gen.yaml` generate message types and gRPC client/server interfaces under
+`gen/go/`. Go downloads the tools on first use. Generation needs Go and access
+to its module downloads. CI regenerates into an empty directory and compares
+the result with the checked-in packages. Edit the `.proto` sources and rerun
+generation to update the generated files. The Week 2 plan tracks service
+registration and REST gateway wiring separately.
+
 ## Friday milestones
 
 | Date (2026) | Scope |

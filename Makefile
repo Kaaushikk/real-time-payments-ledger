@@ -1,7 +1,12 @@
 .PHONY: test tidy run compose proto
 
+PROTO_OUT ?= .
+
 tidy:
 	go mod tidy
+
+proto:
+	go run github.com/bufbuild/buf/cmd/buf@v1.50.0 generate --output "$(PROTO_OUT)"
 
 test:
 	go test ./...

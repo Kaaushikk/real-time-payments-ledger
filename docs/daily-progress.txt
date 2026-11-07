@@ -344,3 +344,39 @@ November 6 final acceptance outcome (15:50 PST):
 - Week 1 engineering acceptance is complete. Reflection text was drafted in the
   chat; external form submission is user-controlled and not independently verified.
 - Next small task: W2-D1 reproducible Protobuf generation after user check-in.
+
+======================================================================
+2026-11-07 - Reproducible Protobuf generation
+Session started about 13:00 PST. Pre-push checks recorded 13:09 PST.
+======================================================================
+Goal
+Generate buildable ledger and auth Go packages from pinned tools and make
+regeneration part of CI.
+
+Work completed
+- Corrected the Buf workspace and generation config. Pinned Buf 1.50.0,
+  protoc-gen-go 1.36.1 and protoc-gen-go-grpc 1.5.1.
+- Generated four Go files under gen/go from the existing Protobuf contracts.
+- Added make proto, README instructions and a fresh-directory CI comparison.
+- Listed the existing Protobuf runtime as a direct Go dependency.
+- Updated the local-only task tracker.
+
+Debugging and decisions
+- The draft placed the workspace's modules setting in buf.gen.yaml and had
+  no generation recipe. Moved the source root to buf.yaml and added the recipe.
+- Go downloaded the pinned compiler and plugins on first use. The local plugins
+  and source-relative paths make the output match the Go package layout.
+- The existing PostgreSQL container accepted connections after startup.
+
+Checks and actual local results
+- Pinned Buf version check returned 1.50.0.
+- Generated twice, including a fresh output directory. All four files matched
+  byte for byte.
+- go build ./gen/go/... and go vet ./... passed.
+- go test ./... -count=1 -timeout 180s passed with local PostgreSQL.
+- Generated Go formatting and git diff --check passed.
+
+Publication and next task
+This entry accompanies the generation commit. Push and CI results are recorded
+after verification in the local tracker. Next task is the ledger read RPCs and
+ownership checks, after the next user check-in.

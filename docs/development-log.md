@@ -273,3 +273,30 @@ Docker availability is again a local environment limitation; database behavior
 was verified in CI, not represented as locally tested today. Next: week 2 API
 contracts and identity hardening. The weekly reflection was drafted in the chat;
 external form submission is controlled by the user and is not independently verified.
+
+
+## November 7, 2026 — reproducible Protobuf generation
+
+The draft had workspace configuration in the generation template, an outdated
+module name, and a Make target declaration without a recipe. Configured `buf.yaml`
+to read the existing contracts from `proto/`. Pinned Buf 1.50.0, the Go message
+generator 1.36.1, and the Go gRPC generator 1.5.1. The local plugins run through
+Go and generate source-relative paths matching the contracts' Go import paths.
+The existing Protobuf runtime version is now a direct dependency because the
+generated packages import it.
+
+Generated four Go files for the ledger and auth message types and gRPC
+client/server interfaces. The API schemas are unchanged. `make proto` generates
+the packages, and the README includes the equivalent PowerShell command. CI
+uses a fresh output directory and compares the complete generated tree with the
+repository. This catches outdated output and files left over after schema changes.
+
+Buf's first run downloaded and built its pinned dependencies. Both generation
+runs produced identical bytes. `go build ./gen/go/...`, `go vet ./...`, generated
+source formatting and `git diff --check` passed. The full `go test ./... -count=1
+-timeout 180s` suite passed with local PostgreSQL. Started the existing project
+database container and retried readiness after it finished starting.
+
+The new CI generation check and existing Linux PostgreSQL/race checks and builds
+are pending at commit time. Next task is to connect the generated read RPCs to
+the ledger service and verify ownership checks. The private tracker stays local.
