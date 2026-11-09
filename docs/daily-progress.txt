@@ -380,3 +380,35 @@ Publication and next task
 This entry accompanies the generation commit. Push and CI results are recorded
 after verification in the local tracker. Next task is the ledger read RPCs and
 ownership checks, after the next user check-in.
+
+======================================================================
+2026-11-08 - Authenticated ledger read RPCs
+Session started about 16:24 PST. Pre-push checks recorded 16:29 PST.
+======================================================================
+Goal
+Expose account, transaction and audit reads through the generated gRPC client.
+
+Work completed
+- Registered the ledger service in cmd/ledger/main.go and implemented three
+  read handlers in internal/grpcserver/ledger.go.
+- Read caller identity from validated bearer metadata and checked resource IDs.
+- Shared owner and participant checks between REST and gRPC in the ledger service.
+- Added generated-client tests and documented the current RPC boundary.
+- Updated the local-only tracker.
+
+Debugging and decisions
+- Used the caller's visible collection for lookup. Missing and inaccessible
+  records use one status and message.
+- Docker's Linux engine was initially unavailable. Starting Docker Desktop
+  from the user installation path restored access. Started the existing
+  PostgreSQL container and repeated the readiness probe after startup.
+
+Checks and local results
+- go test ./... -v -count=1 -timeout 180s passed with local PostgreSQL.
+- Generated-client authentication and PostgreSQL ownership cases passed.
+- go vet ./... and git diff --check passed.
+
+Publication and next task
+This entry accompanies the implementation commit. The private tracker records
+the confirmed push and CI results after verification. Next task is the transfer
+RPC and its retry and ownership tests after user check-in.

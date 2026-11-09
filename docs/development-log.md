@@ -300,3 +300,28 @@ database container and retried readiness after it finished starting.
 The new CI generation check and existing Linux PostgreSQL/race checks and builds
 are pending at commit time. Next task is to connect the generated read RPCs to
 the ledger service and verify ownership checks. The private tracker stays local.
+
+
+## November 8, 2026 — authenticated ledger read RPCs
+
+Registered GetAccount, GetTransaction and ListAuditLog on the ledger gRPC
+server. Each handler derives the caller from one bearer access token in gRPC
+metadata. The existing JWT parser validates the token, and the subject must
+identify a nonzero UUID. The handler validates the resource UUID before reading.
+
+Moved wallet ownership and transaction participant rules into the ledger service
+for both HTTP and gRPC. An account and its audit records belong to its owner.
+Either journal participant can read a transfer. Reads resolve within the caller's
+visible collection, so missing and inaccessible IDs share a NotFound response.
+Authentication failures return Unauthenticated, malformed IDs return
+InvalidArgument, and unexpected read errors return a generic Internal status.
+
+Generated-client tests use a real gRPC server over an in-memory connection.
+They cover missing, malformed and duplicate authorization, a signed token with
+an invalid subject, account ownership, both transfer participants, an unrelated
+caller, malformed IDs and audit limit and balance mapping. The access tests use
+isolated PostgreSQL schemas. The local Linux Docker engine became available after
+starting the installed Docker Desktop, and the project's existing database
+accepted connections after startup. Local full PostgreSQL tests, vet and diff
+checks passed. Linux regeneration, race checks and image builds are verified
+after the push. The next checkpoint is the transfer RPC.

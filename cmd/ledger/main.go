@@ -19,6 +19,7 @@ import (
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/authn"
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/config"
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/db"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/grpcserver"
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/httpserver"
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/idempotency"
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/ledger"
@@ -95,6 +96,7 @@ func main() {
 		os.Exit(1)
 	}
 	grpcSrv := grpc.NewServer()
+	grpcserver.RegisterLedger(grpcSrv, svc, auth)
 	hs := health.NewServer()
 	healthpb.RegisterHealthServer(grpcSrv, hs)
 	hs.SetServingStatus("ledger.v1.LedgerService", healthpb.HealthCheckResponse_SERVING)

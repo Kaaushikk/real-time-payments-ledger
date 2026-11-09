@@ -67,7 +67,12 @@ registration and REST gateway wiring separately.
 
 The initial scaffold includes auth, publishing, Protobuf contracts, observability,
 Compose, chaos/load tools, Helm and Kubernetes. Presence is not integration proof.
-gRPC currently registers health/reflection, not business methods; REST is handwritten.
+The ledger gRPC server registers authenticated account, transaction and audit reads.
+Send one access token as bearer authorization metadata. Account and audit lookups
+are scoped to the owner, and transaction lookups to journal participants.
+Missing and inaccessible records return the same `NotFound` response.
+Ledger writes currently use the handwritten REST routes. The gRPC write handlers
+and generated REST gateway are later Week 2 checkpoints.
 OAuth/refresh concurrency, Kafka tracing, log ingestion and full deployment need
 later milestones. Do not expose local demo auth/credentials publicly.
 

@@ -94,6 +94,39 @@ func (s *Service) GetTransaction(ctx context.Context, id uuid.UUID) (Transaction
 	return tx, rows.Err()
 }
 
+// GetOwnedAccount looks up a wallet within the caller's account collection.
+func (s *Service) GetOwnedAccount(ctx context.Context, id, caller uuid.UUID) (Account, error) {
+	acc, err := s.GetAccount(ctx, id)
+	if err != nil {
+		return Account{}, err
+	}
+	if caller == uuid.Nil || acc.OwnerUserID == nil || *acc.OwnerUserID != caller {
+		return Account{}, ErrAccountNotFound
+	}
+	return acc, nil
+}
+
+// GetParticipantTransaction looks up a transaction visible to a journal participant.
+func (s *Service) GetParticipantTransaction(ctx context.Context, id, caller uuid.UUID) (Transaction, error) {
+	tx, err := s.GetTransaction(ctx, id)
+	if err != nil {
+		return Transaction{}, err
+	}
+	if caller == uuid.Nil {
+		return Transaction{}, ErrAccountNotFound
+	}
+	for _, entry := range tx.Entries {
+		acc, err := s.GetAccount(ctx, entry.AccountID)
+		if err != nil {
+			return Transaction{}, err
+		}
+		if acc.OwnerUserID != nil && *acc.OwnerUserID == caller {
+			return tx, nil
+		}
+	}
+	return Transaction{}, ErrAccountNotFound
+}
+
 func (s *Service) ListAudit(ctx context.Context, accountID uuid.UUID, limit int) ([]AuditEvent, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50

@@ -107,13 +107,9 @@ func (a LedgerAPI) getAccount(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
-	acc, err := a.Ledger.GetAccount(r.Context(), id)
+	acc, err := a.Ledger.GetOwnedAccount(r.Context(), id, r.Context().Value(principalKey{}).(uuid.UUID))
 	if err != nil {
 		writeLedgerErr(w, err)
-		return
-	}
-	if acc.OwnerUserID == nil || *acc.OwnerUserID != r.Context().Value(principalKey{}).(uuid.UUID) {
-		writeErr(w, 404, ledger.ErrAccountNotFound)
 		return
 	}
 	writeJSON(w, http.StatusOK, accountJSON(acc))
@@ -176,24 +172,9 @@ func (a LedgerAPI) getTx(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
-	tx, err := a.Ledger.GetTransaction(r.Context(), id)
+	tx, err := a.Ledger.GetParticipantTransaction(r.Context(), id, r.Context().Value(principalKey{}).(uuid.UUID))
 	if err != nil {
 		writeLedgerErr(w, err)
-		return
-	}
-	participant := false
-	for _, entry := range tx.Entries {
-		acc, err := a.Ledger.GetAccount(r.Context(), entry.AccountID)
-		if err != nil {
-			writeLedgerErr(w, err)
-			return
-		}
-		if acc.OwnerUserID != nil && *acc.OwnerUserID == r.Context().Value(principalKey{}).(uuid.UUID) {
-			participant = true
-		}
-	}
-	if !participant {
-		writeErr(w, 404, ledger.ErrAccountNotFound)
 		return
 	}
 	writeJSON(w, http.StatusOK, txJSON(tx))
@@ -205,13 +186,8 @@ func (a LedgerAPI) audit(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
-	acc, err := a.Ledger.GetAccount(r.Context(), id)
-	if err != nil {
+	if _, err := a.Ledger.GetOwnedAccount(r.Context(), id, r.Context().Value(principalKey{}).(uuid.UUID)); err != nil {
 		writeLedgerErr(w, err)
-		return
-	}
-	if acc.OwnerUserID == nil || *acc.OwnerUserID != r.Context().Value(principalKey{}).(uuid.UUID) {
-		writeErr(w, 404, ledger.ErrAccountNotFound)
 		return
 	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
