@@ -112,7 +112,7 @@ incomplete postings, append-only controls and journal reconciliation. Add CI.
 ### Week 2 — November 13: API contracts and identity
 
 Generate and register business gRPC handlers and real grpc-gateway routes. Ledger
-read RPCs are registered. The handwritten REST routes serve ledger writes. Harden
+read and transfer RPCs are registered. REST uses handwritten routes. Harden
 auth code consumption, refresh rotation, JWT validation, client binding, access
 checks and error mapping. Test HTTP/gRPC parity and concurrent token use. Add
 Redis only where its outage cannot duplicate or lose postings.

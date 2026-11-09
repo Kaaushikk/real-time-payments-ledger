@@ -325,3 +325,27 @@ starting the installed Docker Desktop, and the project's existing database
 accepted connections after startup. Local full PostgreSQL tests, vet and diff
 checks passed. Linux regeneration, race checks and image builds are verified
 after the push. The next checkpoint is the transfer RPC.
+
+
+## November 9, 2026 — authenticated transfer RPC
+
+The generated Transfer RPC validates bearer metadata and account UUIDs, then
+passes the caller and request fields to the existing PostgreSQL posting service.
+The request's idempotency key uses the same caller-scoped receipt as REST. The
+response shares the transaction mapping used by GetTransaction and includes the
+replay flag. Transfer errors use gRPC statuses for invalid input, missing records,
+ownership, changed-key conflicts, in-flight retries and insufficient funds.
+
+The generated-client test posted a transfer, retried it through gRPC with explicit
+USD, and retried it through the existing REST handler with the same key. All
+responses identified the same transaction. Missing credentials, unauthorized
+spending, changed requests, insufficient funds, bad and missing account IDs,
+and missing keys returned the expected statuses. A database snapshot confirmed
+one posting, receipt and outbox event, two journal and audit rows, the expected
+balance changes and reconciliation.
+
+The first test compile found that the pinned Protobuf runtime lacks CloneOf.
+Used the supported Clone API for test requests and reran the full local suite
+against the healthy project PostgreSQL container. All tests, vet and diff checks
+passed. GitHub verifies regeneration, PostgreSQL race tests and image builds
+after the push. Next is generated REST gateway integration.

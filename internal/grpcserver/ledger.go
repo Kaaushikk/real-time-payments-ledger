@@ -51,13 +51,13 @@ func (s *ledgerServer) GetAccount(ctx context.Context, req *ledgerv1.GetAccountR
 	if err != nil {
 		return nil, err
 	}
-	id, err := readID(req.GetAccountId(), "account_id")
+	id, err := parseID(req.GetAccountId(), "account_id")
 	if err != nil {
 		return nil, err
 	}
 	a, err := s.ledger.GetOwnedAccount(ctx, id, caller)
 	if err != nil {
-		return nil, readError(err)
+		return nil, ledgerError(err, "ledger read failed")
 	}
 	return &ledgerv1.Account{
 		AccountId: a.ID.String(), OwnerUserId: a.OwnerUserID.String(),
@@ -70,14 +70,44 @@ func (s *ledgerServer) GetTransaction(ctx context.Context, req *ledgerv1.GetTran
 	if err != nil {
 		return nil, err
 	}
-	id, err := readID(req.GetTransactionId(), "transaction_id")
+	id, err := parseID(req.GetTransactionId(), "transaction_id")
 	if err != nil {
 		return nil, err
 	}
 	tx, err := s.ledger.GetParticipantTransaction(ctx, id, caller)
 	if err != nil {
-		return nil, readError(err)
+		return nil, ledgerError(err, "ledger read failed")
 	}
+	return transactionMessage(tx), nil
+}
+
+func (s *ledgerServer) Transfer(ctx context.Context, req *ledgerv1.TransferRequest) (*ledgerv1.TransferResponse, error) {
+	caller, err := s.caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	from, err := parseID(req.GetFromAccountId(), "from_account_id")
+	if err != nil {
+		return nil, err
+	}
+	to, err := parseID(req.GetToAccountId(), "to_account_id")
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.ledger.Transfer(ctx, ledger.TransferCmd{
+		ActorUserID: caller, IdempotencyKey: req.GetIdempotencyKey(),
+		FromAccountID: from, ToAccountID: to, AmountMinor: req.GetAmountMinor(),
+		Currency: req.GetCurrency(), Description: req.GetDescription(),
+	})
+	if err != nil {
+		return nil, transferError(err)
+	}
+	return &ledgerv1.TransferResponse{
+		Transaction: transactionMessage(result.Tx), Replayed: result.Replayed,
+	}, nil
+}
+
+func transactionMessage(tx ledger.Transaction) *ledgerv1.Transaction {
 	entries := make([]*ledgerv1.JournalEntry, 0, len(tx.Entries))
 	for _, entry := range tx.Entries {
 		entries = append(entries, &ledgerv1.JournalEntry{
@@ -89,7 +119,7 @@ func (s *ledgerServer) GetTransaction(ctx context.Context, req *ledgerv1.GetTran
 		TransactionId: tx.ID.String(), Type: tx.Type, Status: tx.Status,
 		AmountMinor: tx.Amount, Currency: tx.Currency, Description: tx.Description,
 		Entries: entries, CreatedAt: tx.CreatedAt.Format(time.RFC3339Nano),
-	}, nil
+	}
 }
 
 func (s *ledgerServer) ListAuditLog(ctx context.Context, req *ledgerv1.ListAuditLogRequest) (*ledgerv1.ListAuditLogResponse, error) {
@@ -97,16 +127,16 @@ func (s *ledgerServer) ListAuditLog(ctx context.Context, req *ledgerv1.ListAudit
 	if err != nil {
 		return nil, err
 	}
-	id, err := readID(req.GetAccountId(), "account_id")
+	id, err := parseID(req.GetAccountId(), "account_id")
 	if err != nil {
 		return nil, err
 	}
 	if _, err := s.ledger.GetOwnedAccount(ctx, id, caller); err != nil {
-		return nil, readError(err)
+		return nil, ledgerError(err, "ledger read failed")
 	}
 	events, err := s.ledger.ListAudit(ctx, id, int(req.GetLimit()))
 	if err != nil {
-		return nil, readError(err)
+		return nil, ledgerError(err, "ledger read failed")
 	}
 	out := &ledgerv1.ListAuditLogResponse{Events: make([]*ledgerv1.AuditEvent, 0, len(events))}
 	for _, event := range events {
@@ -123,7 +153,7 @@ func (s *ledgerServer) ListAuditLog(ctx context.Context, req *ledgerv1.ListAudit
 	return out, nil
 }
 
-func readID(value, field string) (uuid.UUID, error) {
+func parseID(value, field string) (uuid.UUID, error) {
 	id, err := uuid.Parse(value)
 	if err != nil || id == uuid.Nil {
 		return uuid.Nil, status.Errorf(codes.InvalidArgument, "%s must be a nonzero UUID", field)
@@ -131,7 +161,7 @@ func readID(value, field string) (uuid.UUID, error) {
 	return id, nil
 }
 
-func readError(err error) error {
+func ledgerError(err error, message string) error {
 	switch {
 	case errors.Is(err, ledger.ErrAccountNotFound):
 		return status.Error(codes.NotFound, "resource not found")
@@ -140,6 +170,25 @@ func readError(err error) error {
 	case errors.Is(err, context.DeadlineExceeded):
 		return status.Error(codes.DeadlineExceeded, "request deadline exceeded")
 	default:
-		return status.Error(codes.Internal, "ledger read failed")
+		return status.Error(codes.Internal, message)
+	}
+}
+
+func transferError(err error) error {
+	switch {
+	case errors.Is(err, ledger.ErrUnauthorized):
+		return status.Error(codes.PermissionDenied, "transfer is not permitted")
+	case errors.Is(err, ledger.ErrIdempotencyConflict):
+		return status.Error(codes.AlreadyExists, ledger.ErrIdempotencyConflict.Error())
+	case errors.Is(err, ledger.ErrIdempotencyInFlight):
+		return status.Error(codes.Aborted, ledger.ErrIdempotencyInFlight.Error())
+	case errors.Is(err, ledger.ErrInsufficientFunds), errors.Is(err, ledger.ErrNegativeBalance),
+		errors.Is(err, ledger.ErrAmountOverflow):
+		return status.Error(codes.FailedPrecondition, err.Error())
+	case errors.Is(err, ledger.ErrInvalidTransfer), errors.Is(err, ledger.ErrSameAccount),
+		errors.Is(err, ledger.ErrCurrencyMismatch):
+		return status.Error(codes.InvalidArgument, err.Error())
+	default:
+		return ledgerError(err, "ledger transfer failed")
 	}
 }

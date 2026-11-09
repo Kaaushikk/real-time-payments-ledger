@@ -412,3 +412,31 @@ Publication and next task
 This entry accompanies the implementation commit. The private tracker records
 the confirmed push and CI results after verification. Next task is the transfer
 RPC and its retry and ownership tests after user check-in.
+
+======================================================================
+2026-11-09 - Authenticated transfer RPC
+Session started about 11:05 PST. Pre-push checks recorded 11:09 PST.
+======================================================================
+Goal
+Expose transfer posting through gRPC with the ledger's existing retry and
+ownership behavior.
+
+Work completed
+- Added the Transfer handler and shared transaction response mapping.
+- Mapped validation, permission, balance and retry errors to gRPC statuses.
+- Added a generated-client test that replays the same receipt through gRPC and
+  REST. Checked rejection statuses, one set of database effects and reconciliation.
+- Updated the current API notes and the local-only tracker.
+
+Debugging and results
+- PostgreSQL was already running and accepted connections.
+- The initial test compile failed because the pinned Protobuf runtime lacks
+  CloneOf. Switched the test to Clone without changing dependency versions.
+- go test ./... -v -count=1 -timeout 180s passed with local PostgreSQL.
+- The new transfer test and all seven rejection cases passed.
+- go vet ./... and git diff --check passed.
+
+Publication and next task
+This entry accompanies the transfer implementation commit. The local tracker
+records confirmed push and CI results. Next is the generated REST gateway
+after user check-in.

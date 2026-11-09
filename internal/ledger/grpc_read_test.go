@@ -22,16 +22,16 @@ import (
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/ledger"
 )
 
-var grpcReadConfig = config.Config{
+var grpcTestConfig = config.Config{
 	JWTSigningKey: "unit-test-only-signing-key-not-a-secret",
 	JWTIssuer:     "test", JWTAudience: "ledger-api",
 }
 
-func ledgerReadClient(t *testing.T, svc *ledger.Service) ledgerv1.LedgerServiceClient {
+func ledgerRPCClient(t *testing.T, svc *ledger.Service) ledgerv1.LedgerServiceClient {
 	t.Helper()
 	listener := bufconn.Listen(1 << 20)
 	server := grpc.NewServer()
-	grpcserver.RegisterLedger(server, svc, authn.New(nil, grpcReadConfig))
+	grpcserver.RegisterLedger(server, svc, authn.New(nil, grpcTestConfig))
 	go func() { _ = server.Serve(listener) }()
 	t.Cleanup(server.Stop)
 	t.Cleanup(func() { _ = listener.Close() })
@@ -48,15 +48,15 @@ func ledgerReadClient(t *testing.T, svc *ledger.Service) ledgerv1.LedgerServiceC
 	return ledgerv1.NewLedgerServiceClient(conn)
 }
 
-func readBearer(t *testing.T, subject string) string {
+func rpcBearer(t *testing.T, subject string) string {
 	t.Helper()
 	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, authn.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
-			Subject: subject, Issuer: grpcReadConfig.JWTIssuer,
-			Audience:  jwt.ClaimStrings{grpcReadConfig.JWTAudience},
+			Subject: subject, Issuer: grpcTestConfig.JWTIssuer,
+			Audience:  jwt.ClaimStrings{grpcTestConfig.JWTAudience},
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(5 * time.Minute)),
 		},
-	}).SignedString([]byte(grpcReadConfig.JWTSigningKey))
+	}).SignedString([]byte(grpcTestConfig.JWTSigningKey))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,17 +64,17 @@ func readBearer(t *testing.T, subject string) string {
 }
 
 func TestLedgerReadRPCsRejectInvalidIdentity(t *testing.T) {
-	client := ledgerReadClient(t, nil)
+	client := ledgerRPCClient(t, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	valid := readBearer(t, uuid.NewString())
+	valid := rpcBearer(t, uuid.NewString())
 	for _, tc := range []struct {
 		name   string
 		values []string
 	}{
 		{name: "missing"},
 		{name: "invalid", values: []string{"Bearer invalid"}},
-		{name: "non-UUID subject", values: []string{readBearer(t, "not-a-user")}},
+		{name: "non-UUID subject", values: []string{rpcBearer(t, "not-a-user")}},
 		{name: "duplicate", values: []string{valid, valid}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -110,10 +110,10 @@ func TestLedgerReadRPCsScopeRecordsToCaller(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client := ledgerReadClient(t, svc)
-	alice := metadata.AppendToOutgoingContext(ctx, "authorization", readBearer(t, d.AliceUser.String()))
-	bob := metadata.AppendToOutgoingContext(ctx, "authorization", readBearer(t, d.BobUser.String()))
-	other := metadata.AppendToOutgoingContext(ctx, "authorization", readBearer(t, outsider.String()))
+	client := ledgerRPCClient(t, svc)
+	alice := metadata.AppendToOutgoingContext(ctx, "authorization", rpcBearer(t, d.AliceUser.String()))
+	bob := metadata.AppendToOutgoingContext(ctx, "authorization", rpcBearer(t, d.BobUser.String()))
+	other := metadata.AppendToOutgoingContext(ctx, "authorization", rpcBearer(t, outsider.String()))
 
 	accountID, transactionID := d.AliceAccount.String(), posted.Tx.ID.String()
 	a, err := client.GetAccount(alice, &ledgerv1.GetAccountRequest{AccountId: accountID})

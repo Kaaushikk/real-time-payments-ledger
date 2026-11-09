@@ -71,8 +71,12 @@ The ledger gRPC server registers authenticated account, transaction and audit re
 Send one access token as bearer authorization metadata. Account and audit lookups
 are scoped to the owner, and transaction lookups to journal participants.
 Missing and inaccessible records return the same `NotFound` response.
-Ledger writes currently use the handwritten REST routes. The gRPC write handlers
-and generated REST gateway are later Week 2 checkpoints.
+The Transfer RPC takes an idempotency key in its request and shares the REST
+posting service. An identical retry returns the original transaction with
+replayed set to true. Changed requests with the same key return AlreadyExists,
+insufficient funds return FailedPrecondition, and unauthorized spending returns
+PermissionDenied. Account creation uses the handwritten REST route. The
+generated REST gateway is the next Week 2 checkpoint.
 OAuth/refresh concurrency, Kafka tracing, log ingestion and full deployment need
 later milestones. Do not expose local demo auth/credentials publicly.
 
