@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
@@ -77,19 +79,6 @@ func main() {
 		}
 	}()
 
-	httpSrv := &http.Server{
-		Addr:              cfg.HTTPAddr,
-		Handler:           api.Handler(),
-		ReadHeaderTimeout: 5 * time.Second,
-	}
-	go func() {
-		slog.Info("ledger http listening", "addr", cfg.HTTPAddr)
-		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("http", "err", err)
-			stop()
-		}
-	}()
-
 	lis, err := net.Listen("tcp", cfg.GRPCAddr)
 	if err != nil {
 		slog.Error("grpc listen", "err", err)
@@ -105,6 +94,36 @@ func main() {
 		slog.Info("ledger grpc listening", "addr", cfg.GRPCAddr)
 		if err := grpcSrv.Serve(lis); err != nil {
 			slog.Error("grpc", "err", err)
+			stop()
+		}
+	}()
+
+	grpcAddress := lis.Addr().(*net.TCPAddr)
+	target := grpcAddress.String()
+	if grpcAddress.IP.IsUnspecified() {
+		target = net.JoinHostPort("localhost", strconv.Itoa(grpcAddress.Port))
+	}
+	conn, err := grpc.NewClient("passthrough:///"+target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		slog.Error("grpc gateway connection", "err", err)
+		os.Exit(1)
+	}
+	defer conn.Close()
+	handler, err := httpserver.WithLedgerGateway(ctx, conn, api.Handler())
+	if err != nil {
+		slog.Error("grpc gateway registration", "err", err)
+		os.Exit(1)
+	}
+
+	httpSrv := &http.Server{
+		Addr:              cfg.HTTPAddr,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+	go func() {
+		slog.Info("ledger http listening", "addr", cfg.HTTPAddr)
+		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("http", "err", err)
 			stop()
 		}
 	}()

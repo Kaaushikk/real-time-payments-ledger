@@ -349,3 +349,28 @@ Used the supported Clone API for test requests and reran the full local suite
 against the healthy project PostgreSQL container. All tests, vet and diff checks
 passed. GitHub verifies regeneration, PostgreSQL race tests and image builds
 after the push. Next is generated REST gateway integration.
+
+
+## November 10, 2026 — generated REST gateway
+
+Pinned the gateway generator to the existing grpc-gateway runtime version.
+The YAML route map generates account, transaction, audit and transfer bindings.
+The ledger process mounts them under /gateway/v1 and dials its own registered
+gRPC listener. The original /v1 paths continue to serve existing clients.
+The new routes use Protobuf JSON and the standard gRPC-to-HTTP status mapping.
+
+The gateway forwards the bearer header through the runtime and allows
+Idempotency-Key as application metadata. The transfer handler accepts a key
+from the body or metadata and rejects conflicts and duplicate headers.
+The HTTP boundary rejects non-printable metadata values before the runtime
+could discard them. The gateway bounds request bodies and rejects unknown
+JSON fields.
+
+The PostgreSQL integration test called all four routes, retried a gateway
+transfer over native gRPC and then HTTP, and verified one durable receipt and
+one reconciled posting. It checked authorization, ownership, key conflicts,
+malformed requests and the existing health route. PostgreSQL was healthy.
+Clean regeneration matched all five Go files byte for byte. The full local
+PostgreSQL suite, vet and diff checks passed. The push triggers Linux
+regeneration, PostgreSQL race tests and image builds. Next is the authorization
+code safety checkpoint.

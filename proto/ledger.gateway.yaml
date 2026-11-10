@@ -1,0 +1,13 @@
+type: google.api.Service
+config_version: 3
+http:
+  rules:
+    - selector: ledger.v1.LedgerService.GetAccount
+      get: /gateway/v1/accounts/{account_id}
+    - selector: ledger.v1.LedgerService.GetTransaction
+      get: /gateway/v1/transactions/{transaction_id}
+    - selector: ledger.v1.LedgerService.ListAuditLog
+      get: /gateway/v1/accounts/{account_id}/audit
+    - selector: ledger.v1.LedgerService.Transfer
+      post: /gateway/v1/transfers
+      body: "*"

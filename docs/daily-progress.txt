@@ -440,3 +440,32 @@ Publication and next task
 This entry accompanies the transfer implementation commit. The local tracker
 records confirmed push and CI results. Next is the generated REST gateway
 after user check-in.
+
+======================================================================
+2026-11-10 - Generated REST gateway
+Session started about 12:30 PST. Pre-push checks recorded 12:39 PST.
+======================================================================
+Goal
+Route JSON clients through the registered ledger gRPC service.
+
+Work completed
+- Added a pinned generator and four explicit HTTP routes under /gateway/v1.
+- Connected the generated handlers to the ledger gRPC listener.
+- Forwarded bearer authorization and Idempotency-Key. The transfer RPC checks
+  that the header and body agree and rejects duplicate or invalid keys.
+- Added integration coverage for all routes, cross-transport replay, access
+  checks, malformed requests and unchanged database state after rejection.
+- Documented the separate gateway contract and updated the local-only tracker.
+
+Debugging and results
+- PostgreSQL was already healthy. Buf generated the new gateway Go file.
+- Checked the pinned runtime's Authorization and metadata behavior before
+  implementing the header allowlist.
+- Generated again into a fresh directory. All five output files matched.
+- Targeted gateway test and full local PostgreSQL suite passed.
+- go vet ./... and git diff --check passed.
+
+Publication and next task
+This entry accompanies the gateway implementation commit. The private tracker
+records the confirmed push and CI results. Next is authorization-code safety
+after user check-in.

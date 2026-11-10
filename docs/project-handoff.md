@@ -112,7 +112,8 @@ incomplete postings, append-only controls and journal reconciliation. Add CI.
 ### Week 2 — November 13: API contracts and identity
 
 Generate and register business gRPC handlers and real grpc-gateway routes. Ledger
-read and transfer RPCs are registered. REST uses handwritten routes. Harden
+read and transfer RPCs are registered. Generated routes under /gateway/v1 call
+those RPCs. The original /v1 routes serve existing clients. Harden
 auth code consumption, refresh rotation, JWT validation, client binding, access
 checks and error mapping. Test HTTP/gRPC parity and concurrent token use. Add
 Redis only where its outage cannot duplicate or lose postings.
@@ -165,7 +166,7 @@ accounts 404; invalid inputs 400; unexpected server errors use a generic body.
 
 - Auth code exchange and refresh rotation still need concurrency hardening.
 - Startup seeds demo users; keys/passwords in config are local examples only.
-- Protobuf business methods and gateway are not yet registered.
+- Account creation currently uses the handwritten REST API.
 - Kafka consumers, bounded publishing retries, async traces and Loki ingestion
   need implementation/verification.
 - Existing load script uses one token for both directions; fix before use.

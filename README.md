@@ -51,8 +51,8 @@ in `buf.gen.yaml` generate message types and gRPC client/server interfaces under
 `gen/go/`. Go downloads the tools on first use. Generation needs Go and access
 to its module downloads. CI regenerates into an empty directory and compares
 the result with the checked-in packages. Edit the `.proto` sources and rerun
-generation to update the generated files. The Week 2 plan tracks service
-registration and REST gateway wiring separately.
+generation to update the generated files. The same command generates the REST
+bindings from the route map in proto/ledger.gateway.yaml.
 
 ## Friday milestones
 
@@ -75,8 +75,29 @@ The Transfer RPC takes an idempotency key in its request and shares the REST
 posting service. An identical retry returns the original transaction with
 replayed set to true. Changed requests with the same key return AlreadyExists,
 insufficient funds return FailedPrecondition, and unauthorized spending returns
-PermissionDenied. Account creation uses the handwritten REST route. The
-generated REST gateway is the next Week 2 checkpoint.
+PermissionDenied.
+
+## REST gateway
+
+The ledger HTTP listener exposes the generated routes below. They call the
+registered gRPC service over its configured listener. Use a bearer access token
+and send Idempotency-Key on transfer requests. A request may also supply
+idempotency_key in its JSON body. When both are present, the values must agree.
+
+| Method | Route |
+|---|---|
+| GET | /gateway/v1/accounts/{account_id} |
+| GET | /gateway/v1/transactions/{transaction_id} |
+| GET | /gateway/v1/accounts/{account_id}/audit |
+| POST | /gateway/v1/transfers |
+
+Gateway responses use Protobuf JSON with snake_case field names and string
+encoding for int64 values. The gateway uses standard gRPC-to-HTTP status
+mapping and returns 200 for successful transfer posts and replays. Existing
+/v1 callers can continue to use the handwritten API, including account creation.
+
+## Remaining milestones
+
 OAuth/refresh concurrency, Kafka tracing, log ingestion and full deployment need
 later milestones. Do not expose local demo auth/credentials publicly.
 

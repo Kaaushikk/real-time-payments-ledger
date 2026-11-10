@@ -29,6 +29,11 @@ var grpcTestConfig = config.Config{
 
 func ledgerRPCClient(t *testing.T, svc *ledger.Service) ledgerv1.LedgerServiceClient {
 	t.Helper()
+	return ledgerv1.NewLedgerServiceClient(ledgerRPCConn(t, svc))
+}
+
+func ledgerRPCConn(t *testing.T, svc *ledger.Service) *grpc.ClientConn {
+	t.Helper()
 	listener := bufconn.Listen(1 << 20)
 	server := grpc.NewServer()
 	grpcserver.RegisterLedger(server, svc, authn.New(nil, grpcTestConfig))
@@ -45,7 +50,7 @@ func ledgerRPCClient(t *testing.T, svc *ledger.Service) ledgerv1.LedgerServiceCl
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = conn.Close() })
-	return ledgerv1.NewLedgerServiceClient(conn)
+	return conn
 }
 
 func rpcBearer(t *testing.T, subject string) string {

@@ -94,8 +94,20 @@ func (s *ledgerServer) Transfer(ctx context.Context, req *ledgerv1.TransferReque
 	if err != nil {
 		return nil, err
 	}
+	key := req.GetIdempotencyKey()
+	header := metadata.ValueFromIncomingContext(ctx, "idempotency-key")
+	switch len(header) {
+	case 0:
+	case 1:
+		if header[0] == "" || (key != "" && key != header[0]) {
+			return nil, status.Error(codes.InvalidArgument, "idempotency header and request key must agree")
+		}
+		key = header[0]
+	default:
+		return nil, status.Error(codes.InvalidArgument, "send at most one idempotency header")
+	}
 	result, err := s.ledger.Transfer(ctx, ledger.TransferCmd{
-		ActorUserID: caller, IdempotencyKey: req.GetIdempotencyKey(),
+		ActorUserID: caller, IdempotencyKey: key,
 		FromAccountID: from, ToAccountID: to, AmountMinor: req.GetAmountMinor(),
 		Currency: req.GetCurrency(), Description: req.GetDescription(),
 	})
