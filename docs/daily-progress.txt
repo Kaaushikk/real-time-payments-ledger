@@ -469,3 +469,16 @@ Publication and next task
 This entry accompanies the gateway implementation commit. The private tracker
 records the confirmed push and CI results. Next is authorization-code safety
 after user check-in.
+
+======================================================================
+2026-11-12 - Authorization-code safety
+Session started about 15:33 PST. Pre-push checks recorded 15:37 PST.
+======================================================================
+- Completed the November 11 authorization-code checkpoint on November 12.
+- Bound code redemption to the registered client, redirect URI and S256
+  verifier. Made code consumption and refresh-token persistence atomic.
+- Verified one successful exchange among eight simultaneous callers.
+- Tested invalid inputs, expiration and rollback after a failed token insert.
+- Started the existing Docker Desktop and project PostgreSQL container.
+- Full local PostgreSQL suite and vet passed. GitHub checks follow the push.
+- Next task is refresh-token rotation and JWT safety after user check-in.

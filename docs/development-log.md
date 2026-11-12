@@ -374,3 +374,22 @@ Clean regeneration matched all five Go files byte for byte. The full local
 PostgreSQL suite, vet and diff checks passed. The push triggers Linux
 regeneration, PostgreSQL race tests and image builds. Next is the authorization
 code safety checkpoint.
+
+
+## November 12, 2026 — authorization-code safety
+
+The demo authorization server uses registered public clients with S256 PKCE.
+Issuance requires a registered, nonempty redirect URI and a canonical S256
+challenge. Exchange validates the verifier format and conditionally consumes
+a live code bound to the same client, redirect URI and derived challenge.
+PostgreSQL claims the code and persists the refresh token in one transaction,
+so a storage failure rolls the claim back and a concurrent redemption can
+succeed only once. The server returns tokens after commit.
+
+Tests checked the RFC 7636 example and verifier bounds. PostgreSQL tests
+verified client and redirect binding, invalid verifiers, expired codes,
+eight simultaneous exchanges with one successful issuance, and recovery
+after a simulated refresh-token storage failure. The full local suite and vet
+passed. Docker Desktop started from the existing user installation and the
+project PostgreSQL container accepted connections. Next is refresh-token
+rotation and JWT acceptance.

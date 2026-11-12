@@ -15,6 +15,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
@@ -77,12 +78,19 @@ func (s *Service) CreateAuthCode(ctx context.Context, userID uuid.UUID, clientID
 	if method != "S256" {
 		return "", fmt.Errorf("%w: code_challenge_method must be S256", ErrInvalidRequest)
 	}
+	if redirectURI == "" {
+		return "", ErrInvalidRequest
+	}
+	decoded, err := base64.RawURLEncoding.Strict().DecodeString(challenge)
+	if err != nil || len(decoded) != sha256.Size || base64.RawURLEncoding.EncodeToString(decoded) != challenge {
+		return "", fmt.Errorf("%w: invalid S256 code challenge", ErrInvalidRequest)
+	}
 	if err := s.checkClient(ctx, clientID, redirectURI); err != nil {
 		return "", err
 	}
 	raw := randomB64(32)
 	hash := sha256Hex(raw)
-	_, err := s.pool.Exec(ctx, `
+	_, err = s.pool.Exec(ctx, `
 		INSERT INTO oauth_auth_codes (code_hash, client_id, user_id, redirect_uri, code_challenge, code_challenge_method, expires_at)
 		VALUES ($1, $2, $3, $4, $5, $6, now() + interval '10 minutes')
 	`, hash, clientID, userID, redirectURI, challenge, method)
@@ -90,36 +98,41 @@ func (s *Service) CreateAuthCode(ctx context.Context, userID uuid.UUID, clientID
 }
 
 func (s *Service) ExchangeCode(ctx context.Context, clientID, redirectURI, code, verifier string) (TokenPair, error) {
+	if code == "" || redirectURI == "" || !validPKCEVerifier(verifier) {
+		return TokenPair{}, ErrInvalidGrant
+	}
 	if err := s.checkClient(ctx, clientID, redirectURI); err != nil {
 		return TokenPair{}, err
 	}
-	codeHash := sha256Hex(code)
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
+	if err != nil {
+		return TokenPair{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// The conditional update claims the code once, including under concurrent exchange.
 	var userID uuid.UUID
-	var storedRedirect, challenge, method string
-	var usedAt *time.Time
-	err := s.pool.QueryRow(ctx, `
-		SELECT user_id, redirect_uri, code_challenge, code_challenge_method, used_at
-		FROM oauth_auth_codes WHERE code_hash = $1 AND expires_at > now()
-	`, codeHash).Scan(&userID, &storedRedirect, &challenge, &method, &usedAt)
+	err = tx.QueryRow(ctx, `
+		UPDATE oauth_auth_codes SET used_at = clock_timestamp()
+		WHERE code_hash = $1 AND client_id = $2 AND redirect_uri = $3
+		  AND code_challenge = $4 AND code_challenge_method = 'S256'
+		  AND used_at IS NULL AND expires_at > clock_timestamp()
+		RETURNING user_id
+	`, sha256Hex(code), clientID, redirectURI, pkceChallenge(verifier)).Scan(&userID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return TokenPair{}, ErrInvalidGrant
 	}
 	if err != nil {
 		return TokenPair{}, err
 	}
-	if usedAt != nil {
-		return TokenPair{}, ErrInvalidGrant
-	}
-	if storedRedirect != redirectURI {
-		return TokenPair{}, ErrInvalidGrant
-	}
-	if !verifyPKCE(challenge, method, verifier) {
-		return TokenPair{}, ErrInvalidGrant
-	}
-	if _, err := s.pool.Exec(ctx, `UPDATE oauth_auth_codes SET used_at = now() WHERE code_hash = $1`, codeHash); err != nil {
+	pair, err := s.issueTokens(ctx, tx, userID, clientID)
+	if err != nil {
 		return TokenPair{}, err
 	}
-	return s.issueTokens(ctx, userID, clientID)
+	if err := tx.Commit(ctx); err != nil {
+		return TokenPair{}, err
+	}
+	return pair, nil
 }
 
 func (s *Service) Refresh(ctx context.Context, clientID, refreshToken string) (TokenPair, error) {
@@ -143,7 +156,7 @@ func (s *Service) Refresh(ctx context.Context, clientID, refreshToken string) (T
 	if _, err := s.pool.Exec(ctx, `UPDATE refresh_tokens SET revoked_at = now() WHERE id = $1`, id); err != nil {
 		return TokenPair{}, err
 	}
-	pair, err := s.issueTokens(ctx, userID, clientID)
+	pair, err := s.issueTokens(ctx, s.pool, userID, clientID)
 	if err != nil {
 		return TokenPair{}, err
 	}
@@ -152,7 +165,7 @@ func (s *Service) Refresh(ctx context.Context, clientID, refreshToken string) (T
 }
 
 func (s *Service) DevIssue(ctx context.Context, userID uuid.UUID, clientID string) (TokenPair, error) {
-	return s.issueTokens(ctx, userID, clientID)
+	return s.issueTokens(ctx, s.pool, userID, clientID)
 }
 
 func (s *Service) ParseAccess(token string) (*Claims, error) {
@@ -172,7 +185,11 @@ func (s *Service) ParseAccess(token string) (*Claims, error) {
 	return claims, nil
 }
 
-func (s *Service) issueTokens(ctx context.Context, userID uuid.UUID, clientID string) (TokenPair, error) {
+type tokenWriter interface {
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+}
+
+func (s *Service) issueTokens(ctx context.Context, writer tokenWriter, userID uuid.UUID, clientID string) (TokenPair, error) {
 	now := time.Now()
 	claims := Claims{
 		ClientID: clientID,
@@ -191,7 +208,7 @@ func (s *Service) issueTokens(ctx context.Context, userID uuid.UUID, clientID st
 		return TokenPair{}, err
 	}
 	refresh := randomB64(32)
-	_, err = s.pool.Exec(ctx, `
+	_, err = writer.Exec(ctx, `
 		INSERT INTO refresh_tokens (user_id, client_id, token_hash, expires_at)
 		VALUES ($1, $2, $3, $4)
 	`, userID, clientID, sha256Hex(refresh), now.Add(s.cfg.RefreshTTL))
@@ -232,13 +249,22 @@ func (s *Service) checkClient(ctx context.Context, clientID, redirectURI string)
 	return ErrInvalidClient
 }
 
-func verifyPKCE(challenge, method, verifier string) bool {
-	if method != "S256" {
+func validPKCEVerifier(verifier string) bool {
+	if len(verifier) < 43 || len(verifier) > 128 {
 		return false
 	}
+	for _, c := range verifier {
+		if !(c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' ||
+			c >= '0' && c <= '9' || strings.ContainsRune("-._~", c)) {
+			return false
+		}
+	}
+	return true
+}
+
+func pkceChallenge(verifier string) string {
 	sum := sha256.Sum256([]byte(verifier))
-	computed := base64.RawURLEncoding.EncodeToString(sum[:])
-	return computed == challenge
+	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
 func sha256Hex(s string) string {
