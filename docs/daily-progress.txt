@@ -499,3 +499,19 @@ Local checks recorded at 16:50 Pacific Standard Time.
   passed with the local PostgreSQL test database available.
 - This entry accompanies the auth change. Push and CI results are tracked
   locally. Next is the Week 2 API acceptance check.
+
+======================================================================
+2026-11-14 - Week 2 API acceptance
+======================================================================
+- Completed the API acceptance checkpoint carried from November 13.
+- Compared eight transfer rejection cases through gRPC and the generated
+  REST gateway. Checked the HTTP status, gRPC code and error message.
+- Verified identical transaction details on retry. Checked balances,
+  receipts, journal and audit records, and the outbox after all requests.
+- Confirmed the gateway's HTTP 400 mapping for insufficient funds against
+  the project's pinned gateway runtime and the integration test.
+- The focused gateway test, go test ./... -count=1 -timeout 180s,
+  go vet ./... and git diff --check passed. PostgreSQL was available.
+- Documented status mappings, demo auth limits and durable receipts.
+  This entry accompanies the test commit. Push and CI results are tracked
+  locally. Next is the Week 3 event contract.

@@ -96,6 +96,25 @@ encoding for int64 values. The gateway uses standard gRPC-to-HTTP status
 mapping and returns 200 for successful transfer posts and replays. Existing
 /v1 callers can continue to use the handwritten API, including account creation.
 
+The Week 2 acceptance test sends equivalent transfer requests through gRPC
+and the generated REST gateway. Successful retries return the same transaction
+through either interface. Error bodies from the gateway retain the gRPC code
+and message, while HTTP clients also receive a transport-specific status.
+
+| Transfer outcome | gRPC result | Gateway HTTP status |
+|---|---|---|
+| Missing or invalid bearer token | Unauthenticated | 401 |
+| Source wallet owned by another user | PermissionDenied | 403 |
+| Idempotency key reused with different data | AlreadyExists | 409 |
+| Insufficient funds | FailedPrecondition | 400 |
+| Invalid destination ID or missing idempotency key | InvalidArgument | 400 |
+| Destination wallet does not exist | NotFound | 404 |
+
+The existing handwritten /v1 routes preserve their own response format and
+status codes. PostgreSQL stores idempotency receipts with the ledger posting.
+Redis may be present in the development stack, but the receipt store does not
+use it for deduplication. The API parity test uses PostgreSQL alone.
+
 ## Remaining milestones
 
 The demo authorization server uses registered public clients and S256 PKCE.
@@ -103,7 +122,11 @@ Authorization codes require the registered redirect URI and are redeemed once.
 Code consumption and refresh-token creation share one database transaction.
 Refresh rotation invalidates the old token and saves its replacement in one
 transaction. Reuse of a revoked, unexpired refresh token closes that refresh
-session. Kafka tracing, log ingestion and full deployment are later checkpoints. Do not expose local demo auth/credentials publicly.
+session. Previously issued access tokens remain valid until expiry. The demo
+uses shared JWT signing configuration and a plaintext gRPC connection for
+local development. Keep the demo auth and credentials local.
+
+Kafka tracing, log ingestion and full deployment are later checkpoints.
 
 No claimed 1,000-user capacity, 100% trace coverage, passed chaos count, cloud
 deployment or CI duration. Verified outcomes belong in the development log.

@@ -2,6 +2,7 @@ package ledger_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,7 +10,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
@@ -80,13 +83,13 @@ func TestGeneratedGatewayRoutesAndReceipt(t *testing.T) {
 	req.IdempotencyKey = key
 	client := ledgerv1.NewLedgerServiceClient(conn)
 	replayed, err := client.Transfer(metadata.AppendToOutgoingContext(ctx, "authorization", alice), req)
-	if err != nil || !replayed.GetReplayed() || replayed.GetTransaction().GetTransactionId() != txID {
+	if err != nil || !replayed.GetReplayed() || !proto.Equal(replayed.GetTransaction(), first.GetTransaction()) {
 		t.Fatalf("gRPC replay of gateway posting: %v, %v", replayed, err)
 	}
 	replayBody := body()
 	second := new(ledgerv1.TransferResponse)
 	decode(send(http.MethodPost, transfers, alice, replayBody, key), second)
-	if !second.GetReplayed() || second.GetTransaction().GetTransactionId() != txID {
+	if !second.GetReplayed() || !proto.Equal(second.GetTransaction(), first.GetTransaction()) {
 		t.Fatalf("gateway replay: %v", second)
 	}
 
@@ -107,8 +110,67 @@ func TestGeneratedGatewayRoutesAndReceipt(t *testing.T) {
 		t.Fatalf("gateway audit: %v", audit)
 	}
 
-	req.AmountMinor++
-	conflictingBody := body()
+	for _, tc := range []struct {
+		name       string
+		bearer     string
+		change     func(*ledgerv1.TransferRequest)
+		grpcStatus codes.Code
+		httpStatus int
+	}{
+		{"missing bearer", "", nil, codes.Unauthenticated, http.StatusUnauthorized},
+		{"invalid bearer", "Bearer invalid", nil, codes.Unauthenticated, http.StatusUnauthorized},
+		{"other spender", bob, nil, codes.PermissionDenied, http.StatusForbidden},
+		{"changed request", alice, func(r *ledgerv1.TransferRequest) { r.AmountMinor++ }, codes.AlreadyExists, http.StatusConflict},
+		{"insufficient funds", alice, func(r *ledgerv1.TransferRequest) {
+			r.IdempotencyKey = uuid.NewString()
+			r.AmountMinor = before.AliceBalance + 1
+		}, codes.FailedPrecondition, http.StatusBadRequest},
+		{"invalid destination", alice, func(r *ledgerv1.TransferRequest) {
+			r.ToAccountId = "bad-id"
+		}, codes.InvalidArgument, http.StatusBadRequest},
+		{"missing destination", alice, func(r *ledgerv1.TransferRequest) {
+			r.IdempotencyKey = uuid.NewString()
+			r.ToAccountId = uuid.NewString()
+		}, codes.NotFound, http.StatusNotFound},
+		{"missing retry key", alice, func(r *ledgerv1.TransferRequest) {
+			r.IdempotencyKey = ""
+		}, codes.InvalidArgument, http.StatusBadRequest},
+	} {
+		t.Run(tc.name+" across transports", func(t *testing.T) {
+			attempt := proto.Clone(req).(*ledgerv1.TransferRequest)
+			if tc.change != nil {
+				tc.change(attempt)
+			}
+			rpcCtx := ctx
+			if tc.bearer != "" {
+				rpcCtx = metadata.AppendToOutgoingContext(ctx, "authorization", tc.bearer)
+			}
+			_, rpcErr := client.Transfer(rpcCtx, attempt)
+			if got := status.Code(rpcErr); got != tc.grpcStatus {
+				t.Fatalf("gRPC status=%s want=%s", got, tc.grpcStatus)
+			}
+
+			payload, err := protojson.Marshal(attempt)
+			if err != nil {
+				t.Fatal(err)
+			}
+			w := send(http.MethodPost, transfers, tc.bearer, string(payload))
+			if w.Code != tc.httpStatus {
+				t.Fatalf("HTTP status=%d want=%d body=%s", w.Code, tc.httpStatus, w.Body.String())
+			}
+			var failure struct {
+				Code    codes.Code
+				Message string
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &failure); err != nil {
+				t.Fatal(err)
+			}
+			if failure.Code != tc.grpcStatus || failure.Message != status.Convert(rpcErr).Message() {
+				t.Fatalf("gateway error=%+v; want matching gRPC error %v", failure, rpcErr)
+			}
+		})
+	}
+
 	for _, tc := range []struct {
 		name, method, path, bearer, body string
 		keys                             []string
@@ -116,8 +178,6 @@ func TestGeneratedGatewayRoutesAndReceipt(t *testing.T) {
 	}{
 		{"missing bearer", http.MethodGet, accountPath, "", "", nil, http.StatusUnauthorized},
 		{"other owner", http.MethodGet, accountPath, bob, "", nil, http.StatusNotFound},
-		{"other spender", http.MethodPost, transfers, bob, headerOnly, []string{key}, http.StatusForbidden},
-		{"changed request", http.MethodPost, transfers, alice, conflictingBody, []string{key}, http.StatusConflict},
 		{"conflicting key sources", http.MethodPost, transfers, alice, replayBody, []string{uuid.NewString()}, http.StatusBadRequest},
 		{"invalid header characters", http.MethodPost, transfers, alice, replayBody, []string{"caf\u00e9"}, http.StatusBadRequest},
 		{"duplicate headers", http.MethodPost, transfers, alice, headerOnly, []string{key, key}, http.StatusBadRequest},

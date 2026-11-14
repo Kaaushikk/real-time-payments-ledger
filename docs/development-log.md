@@ -414,3 +414,19 @@ rejections for missing or expired claims, wrong issuer or audience, an invalid
 signature, an unsupported algorithm and missing or invalid subjects. The full
 local PostgreSQL suite, Go vet and diff checks passed. Next is Week 2 API
 acceptance.
+
+## November 14, 2026 — Week 2 API acceptance
+
+The generated gateway test now uses the same Protobuf request for each of eight
+rejection cases across direct gRPC and REST. It checks both the HTTP status
+and the gateway's error body against the direct gRPC response. Insufficient
+funds maps to HTTP 400 through the gateway's standard FailedPrecondition
+mapping. The existing handwritten routes keep their response contracts.
+
+Successful retries recover an identical transaction, including the journal
+entries. After the retries and rejected requests, PostgreSQL shows one transfer
+and receipt, two journal entries and audit records, one outbox event, and
+reconciled balances. The focused integration test, full PostgreSQL suite, vet,
+and diff checks passed. The README records the status mappings, local auth
+limits, and PostgreSQL's role as the durable idempotency store. The Week 3
+event-contract checkpoint is next.
