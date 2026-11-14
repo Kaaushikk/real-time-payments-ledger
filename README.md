@@ -101,8 +101,9 @@ mapping and returns 200 for successful transfer posts and replays. Existing
 The demo authorization server uses registered public clients and S256 PKCE.
 Authorization codes require the registered redirect URI and are redeemed once.
 Code consumption and refresh-token creation share one database transaction.
-Refresh rotation, Kafka tracing, log ingestion and full deployment are later
-checkpoints. Do not expose local demo auth/credentials publicly.
+Refresh rotation invalidates the old token and saves its replacement in one
+transaction. Reuse of a revoked, unexpired refresh token closes that refresh
+session. Kafka tracing, log ingestion and full deployment are later checkpoints. Do not expose local demo auth/credentials publicly.
 
 No claimed 1,000-user capacity, 100% trace coverage, passed chaos count, cloud
 deployment or CI duration. Verified outcomes belong in the development log.

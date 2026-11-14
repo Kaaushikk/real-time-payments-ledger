@@ -165,7 +165,9 @@ accounts 404; invalid inputs 400; unexpected server errors use a generic body.
 ## Known gaps and boundaries
 
 - Authorization-code exchange is atomic and bound to the public client, redirect URI and S256 PKCE verifier.
-- Refresh-token rotation still needs concurrency hardening.
+- Refresh-token rotation serializes changes within each login session. Reusing
+  a revoked, unexpired refresh token revokes the session's replacement tokens.
+  Issued access tokens remain valid until their own expiration.
 - Startup seeds demo users; keys/passwords in config are local examples only.
 - Account creation currently uses the handwritten REST API.
 - Kafka consumers, bounded publishing retries, async traces and Loki ingestion

@@ -125,7 +125,7 @@ func (s *Service) ExchangeCode(ctx context.Context, clientID, redirectURI, code,
 	if err != nil {
 		return TokenPair{}, err
 	}
-	pair, err := s.issueTokens(ctx, tx, userID, clientID)
+	pair, err := s.issueTokens(ctx, tx, userID, clientID, nil)
 	if err != nil {
 		return TokenPair{}, err
 	}
@@ -135,37 +135,8 @@ func (s *Service) ExchangeCode(ctx context.Context, clientID, redirectURI, code,
 	return pair, nil
 }
 
-func (s *Service) Refresh(ctx context.Context, clientID, refreshToken string) (TokenPair, error) {
-	hash := sha256Hex(refreshToken)
-	var id, userID uuid.UUID
-	var revoked *time.Time
-	err := s.pool.QueryRow(ctx, `
-		SELECT id, user_id, revoked_at FROM refresh_tokens
-		WHERE token_hash = $1 AND client_id = $2 AND expires_at > now()
-	`, hash, clientID).Scan(&id, &userID, &revoked)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return TokenPair{}, ErrInvalidGrant
-	}
-	if err != nil {
-		return TokenPair{}, err
-	}
-	if revoked != nil {
-		_, _ = s.pool.Exec(ctx, `UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`, userID)
-		return TokenPair{}, ErrTokenReuse
-	}
-	if _, err := s.pool.Exec(ctx, `UPDATE refresh_tokens SET revoked_at = now() WHERE id = $1`, id); err != nil {
-		return TokenPair{}, err
-	}
-	pair, err := s.issueTokens(ctx, s.pool, userID, clientID)
-	if err != nil {
-		return TokenPair{}, err
-	}
-	_, _ = s.pool.Exec(ctx, `UPDATE refresh_tokens SET parent_id = $1 WHERE token_hash = $2`, id, sha256Hex(pair.RefreshToken))
-	return pair, nil
-}
-
 func (s *Service) DevIssue(ctx context.Context, userID uuid.UUID, clientID string) (TokenPair, error) {
-	return s.issueTokens(ctx, s.pool, userID, clientID)
+	return s.issueTokens(ctx, s.pool, userID, clientID, nil)
 }
 
 func (s *Service) ParseAccess(token string) (*Claims, error) {
@@ -182,6 +153,10 @@ func (s *Service) ParseAccess(token string) (*Claims, error) {
 	if !ok || !parsed.Valid {
 		return nil, ErrInvalidGrant
 	}
+	userID, err := uuid.Parse(claims.Subject)
+	if err != nil || userID == uuid.Nil {
+		return nil, ErrInvalidGrant
+	}
 	return claims, nil
 }
 
@@ -189,7 +164,7 @@ type tokenWriter interface {
 	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
 }
 
-func (s *Service) issueTokens(ctx context.Context, writer tokenWriter, userID uuid.UUID, clientID string) (TokenPair, error) {
+func (s *Service) issueTokens(ctx context.Context, writer tokenWriter, userID uuid.UUID, clientID string, parentID *uuid.UUID) (TokenPair, error) {
 	now := time.Now()
 	claims := Claims{
 		ClientID: clientID,
@@ -209,9 +184,9 @@ func (s *Service) issueTokens(ctx context.Context, writer tokenWriter, userID uu
 	}
 	refresh := randomB64(32)
 	_, err = writer.Exec(ctx, `
-		INSERT INTO refresh_tokens (user_id, client_id, token_hash, expires_at)
-		VALUES ($1, $2, $3, $4)
-	`, userID, clientID, sha256Hex(refresh), now.Add(s.cfg.RefreshTTL))
+		INSERT INTO refresh_tokens (user_id, client_id, token_hash, expires_at, parent_id)
+		VALUES ($1, $2, $3, $4, $5)
+	`, userID, clientID, sha256Hex(refresh), now.Add(s.cfg.RefreshTTL), parentID)
 	if err != nil {
 		return TokenPair{}, err
 	}

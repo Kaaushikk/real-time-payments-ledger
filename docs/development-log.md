@@ -393,3 +393,24 @@ after a simulated refresh-token storage failure. The full local suite and vet
 passed. Docker Desktop started from the existing user installation and the
 project PostgreSQL container accepted connections. Next is refresh-token
 rotation and JWT acceptance.
+
+## November 13, 2026 — refresh rotation and JWT validation
+
+Refresh requests lock the original token row for the login session. The service
+then rereads the presented token, invalidates it, and inserts the replacement
+with its parent link in the same PostgreSQL transaction. The root lock also
+serializes reuse checks with rotations of descendant tokens. Reuse of a
+revoked, unexpired token revokes any active refresh tokens in the same session.
+A separate login for the same account and client can still refresh. Existing
+access tokens are checked locally and expire on their original schedule.
+The shared JWT parser now also requires a nonzero UUID subject.
+
+The first database check found that the existing PostgreSQL container was
+stopped. After starting it and waiting for readiness, the focused tests passed.
+They verified one issuance across eight simultaneous refresh requests, session
+isolation, revocation across multiple generations, client binding, expiry, and
+rollback after a failed replacement insert. JWT tests checked a valid token and
+rejections for missing or expired claims, wrong issuer or audience, an invalid
+signature, an unsupported algorithm and missing or invalid subjects. The full
+local PostgreSQL suite, Go vet and diff checks passed. Next is Week 2 API
+acceptance.

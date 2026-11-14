@@ -482,3 +482,20 @@ Session started about 15:33 PST. Pre-push checks recorded 15:37 PST.
 - Started the existing Docker Desktop and project PostgreSQL container.
 - Full local PostgreSQL suite and vet passed. GitHub checks follow the push.
 - Next task is refresh-token rotation and JWT safety after user check-in.
+
+======================================================================
+2026-11-13 - Refresh rotation and JWT validation
+Local checks recorded at 16:50 Pacific Standard Time.
+======================================================================
+- Made refresh rotation atomic in PostgreSQL and kept reuse revocation
+  within the affected login session.
+- Required a valid account UUID in the shared JWT parser.
+- Updated auth service code, PostgreSQL and JWT regression tests, and
+  the README and handoff.
+- Started the stopped PostgreSQL container and waited for readiness.
+- Focused tests passed. Eight concurrent requests issued one replacement.
+  Reuse revoked the replacement, and a separate login could still rotate.
+- go test ./... -count=1 -timeout 180s, go vet ./... and git diff --check
+  passed with the local PostgreSQL test database available.
+- This entry accompanies the auth change. Push and CI results are tracked
+  locally. Next is the Week 2 API acceptance check.
