@@ -430,3 +430,19 @@ reconciled balances. The focused integration test, full PostgreSQL suite, vet,
 and diff checks passed. The README records the status mappings, local auth
 limits, and PostgreSQL's role as the durable idempotency store. The Week 3
 event-contract checkpoint is next.
+
+## November 16, 2026 — versioned transfer event contract
+
+New transfer events use a typed version 1 JSON payload. The event UUID is
+generated when the transfer is posted and saved as both the outbox row ID and
+the payload event ID. The publisher already uses the row ID as the Kafka key.
+The change adds two fields to the existing payload and leaves older stored
+events intact. The README records the v1 contract and retry semantics.
+
+The PostgreSQL test forced receipt completion to fail after the outbox insert.
+It verified rollback of balances, journal, audit, receipt and event together.
+After removing the test constraint, the same request committed and its replay
+left one pending outbox row. The test checked the JSON field names and values,
+then reconciled balances. Docker Desktop and the existing PostgreSQL container
+needed to start. The focused and full PostgreSQL suites, vet and diff checks
+passed. Broker retry and recovery verification is the next checkpoint.

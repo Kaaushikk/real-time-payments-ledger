@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/events"
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/idempotency"
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/metrics"
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/obs"
@@ -309,18 +310,24 @@ func (s *Service) transferOnce(ctx context.Context, cmd TransferCmd) (TransferRe
 		return TransferResult{}, err
 	}
 
-	payload, _ := json.Marshal(map[string]any{
-		"event_type":      "ledger.transaction.posted",
-		"transaction_id":  txID.String(),
-		"from_account_id": cmd.FromAccountID.String(),
-		"to_account_id":   cmd.ToAccountID.String(),
-		"amount_minor":    cmd.AmountMinor,
-		"currency":        cmd.Currency,
-		"occurred_at":     now.Format(time.RFC3339Nano),
-	})
+	event := events.TransactionPosted{
+		EventID:       uuid.New(),
+		EventType:     events.TransactionPostedType,
+		SchemaVersion: events.TransactionPostedVersion,
+		TransactionID: txID,
+		FromAccountID: cmd.FromAccountID,
+		ToAccountID:   cmd.ToAccountID,
+		AmountMinor:   cmd.AmountMinor,
+		Currency:      cmd.Currency,
+		OccurredAt:    now,
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return TransferResult{}, err
+	}
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO outbox (topic, payload) VALUES ($1, $2)
-	`, s.topic, payload); err != nil {
+		INSERT INTO outbox (id, topic, payload) VALUES ($1, $2, $3)
+	`, event.EventID, s.topic, payload); err != nil {
 		return TransferResult{}, err
 	}
 

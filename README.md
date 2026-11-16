@@ -2,7 +2,7 @@
 
 A four-week Go project for correct simulated transfers under retries and
 concurrency, with event delivery and full observability planned next.
-**Status: week 1 correctness milestone verified; API/identity, event/telemetry, and failure/deployment milestones remain planned.**
+**Status: Week 1 ledger correctness and Week 2 API/identity acceptance verified. Week 3 event delivery and telemetry are in progress.**
 
 Read the [complete handoff](docs/project-handoff.md),
 [four-week plan](docs/four-week-plan.md), and [development log](docs/development-log.md).
@@ -114,6 +114,27 @@ The existing handwritten /v1 routes preserve their own response format and
 status codes. PostgreSQL stores idempotency receipts with the ledger posting.
 Redis may be present in the development stack, but the receipt store does not
 use it for deduplication. The API parity test uses PostgreSQL alone.
+
+## Transfer event contract
+
+A posted transfer writes one JSON event to the PostgreSQL outbox in the same
+transaction as the ledger changes and receipt. The default topic is
+`ledger.transactions` (configured with `KAFKA_TOPIC`).
+
+| Field | Version 1 value |
+|---|---|
+| `event_id` | UUID matching the outbox row ID and Kafka message key |
+| `event_type` | `ledger.transaction.posted` |
+| `schema_version` | Integer `1` |
+| `transaction_id` | UUID of the posted ledger transaction |
+| `from_account_id`, `to_account_id` | Source and destination wallet UUIDs |
+| `amount_minor`, `currency` | Positive signed 64-bit integer amount in cents and `USD` |
+| `occurred_at` | UTC timestamp in RFC 3339 format |
+
+Transfer retries use the stored receipt without creating another event.
+Publisher retries can redeliver the same event, so consumers should deduplicate
+by `event_id`. Existing unversioned outbox rows retain their original JSON
+and Kafka key. This contract applies to newly committed transfers.
 
 ## Remaining milestones
 

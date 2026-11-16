@@ -515,3 +515,18 @@ Local checks recorded at 16:50 Pacific Standard Time.
 - Documented status mappings, demo auth limits and durable receipts.
   This entry accompanies the test commit. Push and CI results are tracked
   locally. Next is the Week 3 event contract.
+
+======================================================================
+2026-11-16 - Versioned transfer event contract
+Local results recorded at 02:46 Pacific Standard Time.
+======================================================================
+- Added a typed v1 event with an ID that matches its outbox row and is
+  used as the Kafka key. Documented the JSON fields and older payloads.
+- Started Docker Desktop and the existing PostgreSQL test container.
+- Forced a late receipt failure and confirmed that the event and all
+  ledger changes rolled back. Retried successfully and confirmed that
+  a replay left exactly one pending event and reconciled balances.
+- Focused outbox tests, go test ./... -count=1 -timeout 180s,
+  go vet ./... and git diff --check passed.
+- This entry accompanies the event contract commit. Push and CI results
+  are tracked locally. Next is publisher recovery against Kafka.
