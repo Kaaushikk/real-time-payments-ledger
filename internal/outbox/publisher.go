@@ -15,19 +15,27 @@ import (
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/obs"
 )
 
+const (
+	pollInterval   = 200 * time.Millisecond
+	maxRetryDelay  = 5 * time.Second
+	publishTimeout = 5 * time.Second
+)
+
 type Publisher struct {
 	pool   *pgxpool.Pool
 	writer *kafka.Writer
 }
 
-func New(pool *pgxpool.Pool, brokers, topic string) *Publisher {
+func New(pool *pgxpool.Pool, brokers string) *Publisher {
 	return &Publisher{
 		pool: pool,
 		writer: &kafka.Writer{
 			Addr:         kafka.TCP(strings.Split(brokers, ",")...),
-			Topic:        topic,
 			Balancer:     &kafka.LeastBytes{},
-			RequiredAcks: kafka.RequireOne,
+			RequiredAcks: kafka.RequireAll,
+			MaxAttempts:  1,
+			ReadTimeout:  2 * time.Second,
+			WriteTimeout: 2 * time.Second,
 			BatchTimeout: 50 * time.Millisecond,
 		},
 	}
@@ -38,17 +46,25 @@ func (p *Publisher) Close() error {
 }
 
 func (p *Publisher) Run(ctx context.Context) error {
-	t := time.NewTicker(200 * time.Millisecond)
-	defer t.Stop()
+	timer := time.NewTimer(pollInterval)
+	defer timer.Stop()
+	delay := pollInterval
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-t.C:
-			if err := p.flush(ctx); err != nil {
-				slog.Error("outbox flush", "err", err)
-			}
+		case <-timer.C:
 		}
+		if err := p.flush(ctx); err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			delay = min(2*delay, maxRetryDelay)
+			slog.Error("outbox flush", "err", err, "retry_in", delay)
+		} else {
+			delay = pollInterval
+		}
+		timer.Reset(delay)
 	}
 }
 
@@ -75,13 +91,13 @@ func (p *Publisher) flush(ctx context.Context) error {
 
 	type rec struct {
 		id      uuid.UUID
+		topic   string
 		payload []byte
 	}
 	var batch []rec
 	for rows.Next() {
 		var r rec
-		var topic string
-		if err := rows.Scan(&r.id, &topic, &r.payload); err != nil {
+		if err := rows.Scan(&r.id, &r.topic, &r.payload); err != nil {
 			rows.Close()
 			return err
 		}
@@ -101,11 +117,14 @@ func (p *Publisher) flush(ctx context.Context) error {
 	for _, r := range batch {
 		ids = append(ids, r.id)
 		msgs = append(msgs, kafka.Message{
+			Topic: r.topic,
 			Key:   []byte(r.id.String()),
 			Value: r.payload,
 		})
 	}
-	if err := p.writer.WriteMessages(ctx, msgs...); err != nil {
+	publishCtx, cancel := context.WithTimeout(ctx, publishTimeout)
+	defer cancel()
+	if err := p.writer.WriteMessages(publishCtx, msgs...); err != nil {
 		span.RecordError(err)
 		return err
 	}

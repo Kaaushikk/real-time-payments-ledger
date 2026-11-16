@@ -530,3 +530,19 @@ Local results recorded at 02:46 Pacific Standard Time.
   go vet ./... and git diff --check passed.
 - This entry accompanies the event contract commit. Push and CI results
   are tracked locally. Next is publisher recovery against Kafka.
+
+======================================================================
+2026-11-16 - Kafka publisher recovery
+Local results recorded at 13:36 Pacific Standard Time.
+======================================================================
+- Continued at the user's check-in after completing the event contract.
+- Added bounded publication waits and retry backoff to the outbox.
+  Uses the stored topic and marks rows published after Kafka acknowledges.
+- Started a temporary loopback-only Kafka 3.7.1 broker. The focused test
+  blocked the publisher connection and verified the row stayed pending.
+  After restoring access, the same publisher retried and Kafka returned
+  the original key and event payload. PostgreSQL marked the row published.
+- go test ./... -count=1 -timeout 180s ran with PostgreSQL and Kafka.
+  The full suite, Go vet and diff checks passed.
+- This entry accompanies the publisher commit. Push and CI results are
+  tracked locally. Next is replay-safe consumer processing.

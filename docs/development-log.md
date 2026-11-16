@@ -446,3 +446,20 @@ left one pending outbox row. The test checked the JSON field names and values,
 then reconciled balances. Docker Desktop and the existing PostgreSQL container
 needed to start. The focused and full PostgreSQL suites, vet and diff checks
 passed. Broker retry and recovery verification is the next checkpoint.
+
+## November 16, 2026 — publisher recovery checkpoint
+
+The publisher sends to the topic stored with the event, requires Kafka
+acknowledgement from all in-sync replicas and uses one Kafka write attempt
+before handing failures back to the outbox loop. It bounds the wait for
+publication, leaves failed rows pending and backs off on repeated failures.
+Acknowledgement and the PostgreSQL update are separate operations, so a retry
+can still deliver a duplicate.
+
+The opt-in integration test used PostgreSQL and a temporary single-node
+Apache Kafka 3.7.1 broker on a loopback port. The publisher's dialer refused
+connections during the outage phase. The row stayed pending, and after the
+test restored connectivity, the same publisher retried. PostgreSQL showed
+the row marked published and Kafka returned the original key and JSON body.
+The full suite with both services, vet and diff checks passed. This verifies
+the single-node recovery path. Consumer deduplication is next.

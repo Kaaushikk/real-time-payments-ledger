@@ -71,7 +71,7 @@ func main() {
 	auth := authn.New(pool, cfg)
 	api := httpserver.LedgerAPI{Ledger: svc, Auth: auth}
 
-	pub := outbox.New(pool, cfg.KafkaBrokers, cfg.KafkaTopic)
+	pub := outbox.New(pool, cfg.KafkaBrokers)
 	defer pub.Close()
 	go func() {
 		if err := pub.Run(ctx); err != nil && ctx.Err() == nil {

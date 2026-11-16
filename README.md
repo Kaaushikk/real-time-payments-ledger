@@ -136,6 +136,31 @@ Publisher retries can redeliver the same event, so consumers should deduplicate
 by `event_id`. Existing unversioned outbox rows retain their original JSON
 and Kafka key. This contract applies to newly committed transfers.
 
+### Publisher recovery
+
+Create the configured topic before starting the publisher. For the local
+Compose broker, start Kafka and run the topic command after it is ready.
+
+```powershell
+docker compose up -d kafka
+docker compose exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic ledger.transactions --partitions 1 --replication-factor 1
+```
+
+The publisher uses the destination recorded with each event and marks a batch
+published only after Kafka acknowledges the write. A failed attempt leaves the
+rows pending. Retry delay starts at 400 ms, doubles on consecutive failures,
+and caps at 5 seconds. The publisher returns to polling every 200 ms after
+success. An acknowledgement followed by a database failure can still lead to
+redelivery with the same event ID.
+
+To run the recovery test, set `DATABASE_URL` and `KAFKA_TEST_BROKER` to a
+test database and broker reachable from the Go test process. The broker must
+advertise an address reachable by that process and allow creation and deletion
+of a temporary topic. Run
+`go test ./internal/outbox -run TestPublisherRecoversWhenKafkaIsReachable -count=1 -v`.
+The test disables the publisher's broker connection, restores it, and checks
+the event read back from Kafka.
+
 ## Remaining milestones
 
 The demo authorization server uses registered public clients and S256 PKCE.
