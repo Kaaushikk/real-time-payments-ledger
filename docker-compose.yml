@@ -173,6 +173,7 @@ services:
       KAFKA_BROKERS: kafka:9092
       KAFKA_TOPIC: ledger.transactions
       KAFKA_CONSUMER_GROUP: ledger-transfer-projection-v1
+      OTEL_EXPORTER_OTLP_ENDPOINT: otel-collector:4317
     depends_on:
       postgres:
         condition: service_healthy

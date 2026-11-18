@@ -325,9 +325,10 @@ func (s *Service) transferOnce(ctx context.Context, cmd TransferCmd) (TransferRe
 	if err != nil {
 		return TransferResult{}, err
 	}
+	carrier := obs.TraceCarrier(ctx)
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO outbox (id, topic, payload) VALUES ($1, $2, $3)
-	`, event.EventID, s.topic, payload); err != nil {
+		INSERT INTO outbox (id, topic, payload, traceparent, tracestate) VALUES ($1, $2, $3, $4, $5)
+	`, event.EventID, s.topic, payload, carrier.Get("traceparent"), carrier.Get("tracestate")); err != nil {
 		return TransferResult{}, err
 	}
 

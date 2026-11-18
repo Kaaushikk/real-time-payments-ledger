@@ -11,8 +11,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/events"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/obs"
 )
 
 var (
@@ -51,7 +55,16 @@ func (c *Consumer) Run(ctx context.Context, reader Reader) error {
 }
 
 // Handle stores the event and its deduplication identity in a single insert.
-func (c *Consumer) Handle(ctx context.Context, message kafka.Message) error {
+func (c *Consumer) Handle(ctx context.Context, message kafka.Message) (err error) {
+	ctx = obs.ExtractKafkaTrace(ctx, message.Headers)
+	ctx, span := obs.Tracer().Start(ctx, "kafka.ProcessTransfer", trace.WithSpanKind(trace.SpanKindConsumer))
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "event processing failed")
+		}
+		span.End()
+	}()
 	var event events.TransactionPosted
 	if err := json.Unmarshal(message.Value, &event); err != nil {
 		return fmt.Errorf("%w: malformed JSON", ErrInvalidEvent)
@@ -64,6 +77,7 @@ func (c *Consumer) Handle(ctx context.Context, message kafka.Message) error {
 		string(message.Key) != event.EventID.String() {
 		return ErrInvalidEvent
 	}
+	span.SetAttributes(attribute.String("event_id", event.EventID.String()))
 	payload, err := json.Marshal(event)
 	if err != nil {
 		return err
@@ -91,6 +105,7 @@ func (c *Consumer) Handle(ctx context.Context, message kafka.Message) error {
 	if err != nil {
 		return err
 	}
+	span.SetAttributes(attribute.Bool("duplicate", matches))
 	if !matches {
 		return ErrEventConflict
 	}

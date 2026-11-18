@@ -486,3 +486,23 @@ and a fresh group reader resumed at that same failed offset. The complete
 local suite ran with Kafka and PostgreSQL, including publisher recovery.
 Go vet, Compose validation and diff checks passed. The temporary broker was
 removed. CI also builds the consumer image. Trace propagation is next.
+
+## November 18, 2026 — request-to-consumer trace propagation
+
+The generated gateway now creates an HTTP span and injects trace context into
+gRPC metadata. The server interceptor extracts that parent. A new migration
+adds traceparent and tracestate to the outbox. The transfer saves those values
+atomically with its event. Each publisher event span uses its own stored parent,
+and Kafka headers carry the producer context to the consumer. Consumer processing
+records its span and errors. The consumer command initializes and shuts down
+the configured OTLP exporter.
+
+Focused tests checked gateway/gRPC/transfer parent relationships, persistence,
+Kafka propagation and exclusion of baggage. A local Kafka integration test
+exported to a temporary Jaeger instance. Its API returned trace
+a10c679360b94b8a3ba97354a27b9cc9 with all seven expected spans and the parent
+chain from test request through gateway, gRPC, transfer, transfer attempt,
+publisher and consumer. This verification used a single test process.
+The complete local PostgreSQL/Kafka/Jaeger suite, vet, Compose validation and
+diff checks passed. Temporary containers were removed. Metrics and dashboard
+verification is the next checkpoint.

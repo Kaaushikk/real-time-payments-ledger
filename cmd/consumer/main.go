@@ -8,12 +8,14 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/segmentio/kafka-go"
 
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/config"
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/consumer"
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/db"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/obs"
 	"github.com/Kaaushikk/real-time-payments-ledger/migrations"
 )
 
@@ -28,6 +30,15 @@ func run() error {
 	cfg := config.Load("consumer")
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	shutdown, err := obs.Setup(ctx, cfg.ServiceName, cfg.OTLPEndpoint)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = shutdown(shutdownCtx)
+	}()
 
 	pool, err := db.Connect(ctx, cfg.DatabaseURL)
 	if err != nil {

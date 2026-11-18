@@ -11,6 +11,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/segmentio/kafka-go"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/obs"
 )
@@ -68,7 +71,7 @@ func (p *Publisher) Run(ctx context.Context) error {
 	}
 }
 
-func (p *Publisher) flush(ctx context.Context) error {
+func (p *Publisher) flush(ctx context.Context) (err error) {
 	ctx, span := obs.Tracer().Start(ctx, "kafka.PublishOutbox")
 	defer span.End()
 
@@ -79,7 +82,7 @@ func (p *Publisher) flush(ctx context.Context) error {
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	rows, err := tx.Query(ctx, `
-		SELECT id, topic, payload FROM outbox
+		SELECT id, topic, payload, traceparent, tracestate FROM outbox
 		WHERE published_at IS NULL
 		ORDER BY created_at
 		LIMIT 100
@@ -93,11 +96,13 @@ func (p *Publisher) flush(ctx context.Context) error {
 		id      uuid.UUID
 		topic   string
 		payload []byte
+		parent  string
+		state   string
 	}
 	var batch []rec
 	for rows.Next() {
 		var r rec
-		if err := rows.Scan(&r.id, &r.topic, &r.payload); err != nil {
+		if err := rows.Scan(&r.id, &r.topic, &r.payload, &r.parent, &r.state); err != nil {
 			rows.Close()
 			return err
 		}
@@ -114,12 +119,30 @@ func (p *Publisher) flush(ctx context.Context) error {
 
 	msgs := make([]kafka.Message, 0, len(batch))
 	ids := make([]uuid.UUID, 0, len(batch))
+	var eventSpans []trace.Span
+	defer func() {
+		for _, eventSpan := range eventSpans {
+			if err != nil {
+				eventSpan.RecordError(err)
+				eventSpan.SetStatus(codes.Error, "publication failed")
+			}
+			eventSpan.End()
+		}
+	}()
 	for _, r := range batch {
+		eventCtx := propagation.TraceContext{}.Extract(ctx, propagation.MapCarrier{
+			"traceparent": r.parent, "tracestate": r.state,
+		})
+		eventCtx, eventSpan := obs.Tracer().Start(eventCtx, "kafka.PublishTransfer",
+			trace.WithSpanKind(trace.SpanKindProducer),
+			trace.WithAttributes(attribute.String("event_id", r.id.String())))
+		eventSpans = append(eventSpans, eventSpan)
 		ids = append(ids, r.id)
 		msgs = append(msgs, kafka.Message{
-			Topic: r.topic,
-			Key:   []byte(r.id.String()),
-			Value: r.payload,
+			Topic:   r.topic,
+			Key:     []byte(r.id.String()),
+			Value:   r.payload,
+			Headers: obs.KafkaTraceHeaders(eventCtx),
 		})
 	}
 	publishCtx, cancel := context.WithTimeout(ctx, publishTimeout)

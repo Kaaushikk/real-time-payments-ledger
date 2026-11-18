@@ -35,7 +35,7 @@ func ledgerRPCClient(t *testing.T, svc *ledger.Service) ledgerv1.LedgerServiceCl
 func ledgerRPCConn(t *testing.T, svc *ledger.Service) *grpc.ClientConn {
 	t.Helper()
 	listener := bufconn.Listen(1 << 20)
-	server := grpc.NewServer()
+	server := grpc.NewServer(grpc.UnaryInterceptor(grpcserver.TraceUnary))
 	grpcserver.RegisterLedger(server, svc, authn.New(nil, grpcTestConfig))
 	go func() { _ = server.Serve(listener) }()
 	t.Cleanup(server.Stop)

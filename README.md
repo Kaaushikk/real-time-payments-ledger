@@ -194,6 +194,34 @@ Run `go test ./internal/ledger -run TestConsumer -count=1 -v` with
 That test sends duplicate events followed by a malformed event, restarts the
 consumer group, and verifies that the malformed event is still unacknowledged.
 
+### Connected request and event traces
+
+The generated gateway starts an HTTP span and forwards W3C trace context to
+the gRPC interceptor. Each committed transfer stores its trace parent and
+trace state beside the outbox event. The publisher creates a producer span
+under that saved parent and carries it in Kafka headers. The consumer extracts
+the headers and creates its processing span.
+
+The metadata uses separate outbox columns, keeping the version 1 event payload
+stable. It carries trace context only. Credentials and baggage are excluded.
+Older rows default to empty trace fields and can still publish. Missing or
+malformed trace context starts a local trace.
+
+The consumer exports through `OTEL_EXPORTER_OTLP_ENDPOINT`, like the ledger.
+To verify the connection with a reachable test broker and PostgreSQL, set
+`KAFKA_TEST_BROKER` and `DATABASE_URL`. Optionally set
+`TRACE_TEST_OTLP_ENDPOINT` to a local Jaeger OTLP gRPC endpoint, such as
+`localhost:4317`, then run:
+
+```powershell
+go test ./internal/ledger -run 'Test(GatewayPersistsTraceParent|TracePipelineThroughKafka)$' -count=1 -v
+```
+
+The Kafka test prints its verified trace ID for lookup in Jaeger. It checks
+the parent chain from the HTTP gateway through gRPC, transfer, publication
+and consumption. The local verification uses one test process. Separate
+service deployment and full telemetry acceptance remain later checks.
+
 ## Remaining milestones
 
 The demo authorization server uses registered public clients and S256 PKCE.
@@ -205,7 +233,7 @@ session. Previously issued access tokens remain valid until expiry. The demo
 uses shared JWT signing configuration and a plaintext gRPC connection for
 local development. Keep the demo auth and credentials local.
 
-Kafka tracing, log ingestion and full deployment are later checkpoints.
+Metrics/dashboard verification, log ingestion and full deployment are later checkpoints.
 
 No claimed 1,000-user capacity, 100% trace coverage, passed chaos count, cloud
 deployment or CI duration. Verified outcomes belong in the development log.

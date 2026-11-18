@@ -84,7 +84,7 @@ func main() {
 		slog.Error("grpc listen", "err", err)
 		os.Exit(1)
 	}
-	grpcSrv := grpc.NewServer()
+	grpcSrv := grpc.NewServer(grpc.UnaryInterceptor(grpcserver.TraceUnary))
 	grpcserver.RegisterLedger(grpcSrv, svc, auth)
 	hs := health.NewServer()
 	healthpb.RegisterHealthServer(grpcSrv, hs)

@@ -566,3 +566,21 @@ Local results recorded at 18:04 Pacific Standard Time.
   checks passed. Removed the temporary broker.
 - This entry accompanies the consumer commit. Push and CI results are
   tracked locally. Next is request-to-consumer trace propagation.
+
+======================================================================
+2026-11-18 - Request-to-consumer trace propagation
+Local results recorded at 11:32 Pacific Standard Time.
+======================================================================
+- Connected the HTTP gateway and gRPC spans. Persisted trace context in
+  two new outbox columns while keeping the event payload stable.
+- Added one publisher span per event, injected Kafka trace headers and
+  extracted them for the consumer processing span. Enabled consumer OTLP.
+- Tested persisted trace parents, missing/invalid headers and exclusion
+  of baggage. Verified the full span parent chain with PostgreSQL/Kafka.
+- Jaeger returned trace a10c679360b94b8a3ba97354a27b9cc9 with seven
+  expected spans in the local integration test. The test uses one process.
+- go test ./... -count=1 -timeout 180s ran with PostgreSQL, Kafka and Jaeger.
+  The suite, Go vet, Compose validation and diff checks passed.
+- Removed the temporary Kafka and Jaeger containers. This entry accompanies
+  the trace commit. Push and CI results are tracked locally.
+- Next is metrics and dashboard verification.
