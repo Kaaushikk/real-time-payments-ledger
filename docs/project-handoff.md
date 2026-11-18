@@ -31,7 +31,8 @@ account balances are zero while user wallets remain non-negative.
 A network retry with the same user, operation, key and body returns the original
 transaction without moving money again. Reusing the key for different intent
 returns an error. Every committed transfer also creates audit records and an
-outbox event. Background publication and replay-safe consumption are planned.
+outbox event. Publisher recovery and consumer deduplication have local Kafka
+and PostgreSQL integration tests. Connected telemetry is the next checkpoint.
 
 ## Corrected design
 
@@ -170,8 +171,9 @@ accounts 404; invalid inputs 400; unexpected server errors use a generic body.
   Issued access tokens remain valid until their own expiration.
 - Startup seeds demo users; keys/passwords in config are local examples only.
 - Account creation currently uses the handwritten REST API.
-- Kafka consumers, bounded publishing retries, async traces and Loki ingestion
-  need implementation/verification.
+- Publisher retries and the v1 consumer projection are implemented. Consumer
+  failures stop processing for investigation, including older unversioned events.
+- Async traces and Loki ingestion need implementation/verification.
 - Existing load script uses one token for both directions; fix before use.
 - Chaos scripts and Helm/Kubernetes files are drafts, not passed experiments.
 - Audit/upgrade inherited dependency versions before deployment.

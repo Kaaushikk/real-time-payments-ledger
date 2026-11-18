@@ -161,6 +161,39 @@ of a temporary topic. Run
 The test disables the publisher's broker connection, restores it, and checks
 the event read back from Kafka.
 
+### Consumer projection
+
+The consumer stores validated version 1 events in `consumed_transfers`.
+Each row contains the event ID, transaction ID and typed JSON payload.
+PostgreSQL uniqueness checks let repeated deliveries produce one row, including
+after a process restart. The consumer also rejects a reused identity with
+different transfer data. The ledger balances and journal remain the transfer
+service's responsibility.
+
+After creating the topic as described above, start the local consumer with:
+
+```powershell
+docker compose up -d --build consumer
+```
+
+Its default group is `ledger-transfer-projection-v1`, configured through
+`KAFKA_CONSUMER_GROUP`. It processes messages sequentially and synchronously
+commits the Kafka offset after database storage succeeds. If the database
+commit succeeds and offset acknowledgement fails, redelivery finds the stored
+row. The consumer stops on validation, storage or acknowledgement failure.
+
+Malformed JSON, unsupported schema versions, missing or invalid fields and
+a Kafka key that differs from the event ID are rejected. Older unversioned
+events also stop this consumer for investigation. It reports the partition
+and offset without logging the event body. Inspect the failing event and
+decide how to correct or migrate it before restarting. Dead-letter routing
+and automatic handling of older schemas remain future work.
+
+Run `go test ./internal/ledger -run TestConsumer -count=1 -v` with
+`DATABASE_URL`. Set `KAFKA_TEST_BROKER` as well to run the real Kafka test.
+That test sends duplicate events followed by a malformed event, restarts the
+consumer group, and verifies that the malformed event is still unacknowledged.
+
 ## Remaining milestones
 
 The demo authorization server uses registered public clients and S256 PKCE.

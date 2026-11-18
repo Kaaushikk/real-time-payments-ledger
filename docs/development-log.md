@@ -463,3 +463,26 @@ test restored connectivity, the same publisher retried. PostgreSQL showed
 the row marked published and Kafka returned the original key and JSON body.
 The full suite with both services, vet and diff checks passed. This verifies
 the single-node recovery path. Consumer deduplication is next.
+
+## November 17, 2026 — replay-safe consumer
+
+Added a consumer command, Compose service and an append-only PostgreSQL
+projection for version 1 transfer events. One insert stores the projection and
+its unique event and transaction identities. Repeated identical deliveries
+succeed; conflicting data with reused identity fails. Processing is sequential,
+and Kafka acknowledgement happens only after successful database processing.
+Invalid events or failures stop the worker before it reads a later event.
+
+PostgreSQL tests verified eight concurrent duplicates, restart/replay, conflicting
+identities, validation failures, database failure and acknowledgement failure.
+The consumer left ledger balances, journal, audit and outbox state unchanged.
+An initial Compose insertion matched a dependency name as well as the service
+name; narrowing the edit to the service block resolved it. Compose validation
+passed.
+
+The Kafka test used a temporary Apache Kafka 3.7.1 broker and a consumer group.
+Two copies produced one projection. A malformed third event stopped processing,
+and a fresh group reader resumed at that same failed offset. The complete
+local suite ran with Kafka and PostgreSQL, including publisher recovery.
+Go vet, Compose validation and diff checks passed. The temporary broker was
+removed. CI also builds the consumer image. Trace propagation is next.

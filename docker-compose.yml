@@ -162,6 +162,23 @@ services:
       auth:
         condition: service_started
 
+  consumer:
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile
+      args:
+        BIN: consumer
+    environment:
+      DATABASE_URL: postgres://ledger:ledger@postgres:5432/ledger?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_TOPIC: ledger.transactions
+      KAFKA_CONSUMER_GROUP: ledger-transfer-projection-v1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+
   toxiproxy-config:
     image: curlimages/curl:8.11.0
     depends_on:

@@ -50,3 +50,5 @@ jobs:
         run: docker build -f deployments/docker/Dockerfile --build-arg BIN=ledger -t ledger:ci .
       - name: Build auth image
         run: docker build -f deployments/docker/Dockerfile --build-arg BIN=auth -t auth:ci .
+      - name: Build consumer image
+        run: docker build -f deployments/docker/Dockerfile --build-arg BIN=consumer -t consumer:ci .

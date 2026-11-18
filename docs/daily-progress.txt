@@ -546,3 +546,23 @@ Local results recorded at 13:36 Pacific Standard Time.
   The full suite, Go vet and diff checks passed.
 - This entry accompanies the publisher commit. Push and CI results are
   tracked locally. Next is replay-safe consumer processing.
+
+======================================================================
+2026-11-17 - Replay-safe consumer
+Local results recorded at 18:04 Pacific Standard Time.
+======================================================================
+- Added cmd/consumer, its configuration and Compose service, and a migration
+  for consumed_transfers. Added the consumer image build to GitHub checks.
+- Validated v1 events before storage. Unique event/transaction IDs prevent
+  duplicate projection rows. Conflicting payloads stop processing.
+- Kafka offsets commit after database processing. Failed work stops the
+  worker so a later offset cannot skip it.
+- Tested eight concurrent copies, restart/replay, invalid fields, conflicting
+  identities, database errors and offset acknowledgement errors.
+- Tested a real Kafka group with duplicate events and a malformed event.
+  After restart, the failed event remained the next message.
+- Corrected an ambiguous Compose edit and validated the service configuration.
+- Full local tests ran with PostgreSQL and Kafka. Go vet, Compose and diff
+  checks passed. Removed the temporary broker.
+- This entry accompanies the consumer commit. Push and CI results are
+  tracked locally. Next is request-to-consumer trace propagation.
