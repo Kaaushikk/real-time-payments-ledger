@@ -506,3 +506,27 @@ publisher and consumer. This verification used a single test process.
 The complete local PostgreSQL/Kafka/Jaeger suite, vet, Compose validation and
 diff checks passed. Temporary containers were removed. Metrics and dashboard
 verification is the next checkpoint.
+
+## November 19, 2026 — Prometheus metrics and Grafana verification
+
+Added PostgreSQL-backed gauges for outbox backlog and oldest pending age.
+A failed query exposes collection failure and omits backlog values. Nonempty
+publication batches now record outcome and duration. Transfer metric help text
+defines the service boundary; cancellation during retry backoff reaches the
+shared error counter path. Outcome label values are fixed and initialized.
+
+The dashboard now uses an explicit datasource UID and six panels covering
+transfer outcomes, p99 service duration, backlog, pending age, publication
+outcomes and database collection status. Prometheus scrapes the implemented
+ledger endpoint. Regression tests verified all four transfer outcomes through
+HTTP, histogram observations, backlog growth/drainage and collection failure.
+
+An isolated local Docker stack ran the actual auth/ledger images with
+PostgreSQL, Kafka, Prometheus and Grafana. HTTP returned 201, 200, 400 and 409
+for the posted, replayed, invalid and insufficient-funds requests. Before Kafka
+started, Prometheus showed one pending event and two failed batch attempts.
+After broker startup and topic creation, it showed zero pending events and
+one successful batch. Grafana's datasource query API returned numeric values
+for each of the six provisioned panels. This verified the dashboard queries.
+The full PostgreSQL suite, vet, Compose and diff checks passed. Temporary
+verification resources were removed. Correlated log ingestion is next.

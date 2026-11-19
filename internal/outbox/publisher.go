@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/metrics"
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/obs"
 )
 
@@ -117,6 +118,15 @@ func (p *Publisher) flush(ctx context.Context) (err error) {
 		return tx.Commit(ctx)
 	}
 
+	started := time.Now()
+	defer func() {
+		result := "success"
+		if err != nil {
+			result = "error"
+		}
+		metrics.PublishBatches.WithLabelValues(result).Inc()
+		metrics.PublishLatency.Observe(time.Since(started).Seconds())
+	}()
 	msgs := make([]kafka.Message, 0, len(batch))
 	ids := make([]uuid.UUID, 0, len(batch))
 	var eventSpans []trace.Span

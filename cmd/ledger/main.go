@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -25,6 +26,7 @@ import (
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/httpserver"
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/idempotency"
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/ledger"
+	"github.com/Kaaushikk/real-time-payments-ledger/internal/metrics"
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/obs"
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/outbox"
 	"github.com/Kaaushikk/real-time-payments-ledger/internal/seed"
@@ -49,6 +51,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
+	prometheus.MustRegister(metrics.NewOutboxCollector(pool))
 	if err := migrations.Apply(ctx, pool); err != nil {
 		slog.Error("migrate", "err", err)
 		os.Exit(1)

@@ -177,6 +177,7 @@ func (s *Service) Transfer(ctx context.Context, cmd TransferCmd) (TransferResult
 
 	var result TransferResult
 	var lastErr error
+retryLoop:
 	for attempt := 0; attempt < 32; attempt++ {
 		result, lastErr = s.transferOnce(ctx, cmd)
 		if lastErr == nil {
@@ -189,7 +190,8 @@ func (s *Service) Transfer(ctx context.Context, cmd TransferCmd) (TransferResult
 		delay := time.Duration(1<<min(attempt, 8)) * time.Millisecond
 		select {
 		case <-ctx.Done():
-			return TransferResult{}, ctx.Err()
+			lastErr = ctx.Err()
+			break retryLoop
 		case <-time.After(delay):
 		}
 	}

@@ -222,6 +222,37 @@ the parent chain from the HTTP gateway through gRPC, transfer, publication
 and consumption. The local verification uses one test process. Separate
 service deployment and full telemetry acceptance remain later checks.
 
+### Metrics and dashboard
+
+Prometheus scrapes the ledger's `/metrics` endpoint directly. Transfer counters
+use four outcomes: `posted`, `replayed`, `invalid` and `error`. The histogram
+measures calls to the transfer service, including internal retries. HTTP
+requests rejected before reaching that service are outside these metrics.
+
+The outbox collector queries PostgreSQL during each scrape with a two-second
+timeout. It exposes pending-event count and the oldest pending event's age.
+An empty outbox has zero age. Query failure reports
+`ledger_outbox_collection_success=0` and omits the backlog values for that
+scrape. Publication counters and a histogram cover nonempty batch attempts.
+The only application metric label is a bounded outcome, keeping account,
+transaction, event and retry-key values out of metric labels.
+
+The provisioned Payments Ledger dashboard uses the Prometheus datasource UID
+`prometheus`. Its six panels show transfer outcomes, service p99 latency,
+pending events, oldest pending age, publication outcomes and collection status.
+Start Prometheus and Grafana alongside the local ledger, then open the Payments
+Ledger dashboard in the Ledger folder. The default Compose Grafana address is
+`http://localhost:3000`. Rates need multiple scrapes and latency quantiles
+need requests in the selected interval.
+
+The November 19 local check ran separate ledger, auth, database, Kafka,
+Prometheus and Grafana containers. It submitted four HTTP requests covering
+the four transfer outcomes, observed one pending event during broker
+unavailability, and verified drainage after recovery. Grafana's query API
+returned numeric data for all six provisioned panel queries. These small
+functional checks establish instrumentation behaviour without estimating
+production latency or capacity.
+
 ## Remaining milestones
 
 The demo authorization server uses registered public clients and S256 PKCE.
@@ -233,7 +264,7 @@ session. Previously issued access tokens remain valid until expiry. The demo
 uses shared JWT signing configuration and a plaintext gRPC connection for
 local development. Keep the demo auth and credentials local.
 
-Metrics/dashboard verification, log ingestion and full deployment are later checkpoints.
+Log ingestion, full telemetry acceptance and deployment validation are later checkpoints.
 
 No claimed 1,000-user capacity, 100% trace coverage, passed chaos count, cloud
 deployment or CI duration. Verified outcomes belong in the development log.

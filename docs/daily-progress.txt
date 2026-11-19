@@ -584,3 +584,24 @@ Local results recorded at 11:32 Pacific Standard Time.
 - Removed the temporary Kafka and Jaeger containers. This entry accompanies
   the trace commit. Push and CI results are tracked locally.
 - Next is metrics and dashboard verification.
+
+======================================================================
+2026-11-19 - Metrics and dashboard verification
+Local results recorded at 12:34 Pacific Standard Time.
+======================================================================
+- Added bounded outbox database collection, pending count/age and collection
+  status. Added nonempty publication batch outcomes/duration.
+- Kept fixed result labels and corrected cancellation accounting during
+  retry backoff. Defined transfer metrics as service calls.
+- Expanded Grafana to six panels with an explicit Prometheus datasource UID.
+  Configured Prometheus to scrape the implemented ledger metrics endpoint.
+- PostgreSQL regression tests verified four HTTP outcomes, latency sample
+  count, pending/published gauges and database collection failure.
+- Ran an isolated local Docker stack. Actual HTTP responses were 201, 200,
+  400 and 409. Prometheus showed one pending event and two publication
+  failures before Kafka became available, then zero pending and one success.
+- Queried all six provisioned panels through Grafana. Each returned numeric
+  data from Prometheus. Full PostgreSQL tests, vet, Compose and diff checks
+  passed. Removed the temporary verification stack.
+- This entry accompanies the metrics commit. Push and CI are tracked locally.
+  Next is correlated log ingestion.

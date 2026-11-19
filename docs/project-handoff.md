@@ -33,7 +33,8 @@ transaction without moving money again. Reusing the key for different intent
 returns an error. Every committed transfer also creates audit records and an
 outbox event. Publisher recovery and consumer deduplication have local Kafka
 and PostgreSQL integration tests. Request-to-consumer trace propagation is
-verified locally. Metrics, logs and full telemetry acceptance follow.
+verified locally. Prometheus and Grafana metrics checks passed against actual
+HTTP transfers and broker recovery. Logs and full telemetry acceptance follow.
 
 ## Corrected design
 
