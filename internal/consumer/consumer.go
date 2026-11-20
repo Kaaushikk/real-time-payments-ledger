@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -58,11 +59,22 @@ func (c *Consumer) Run(ctx context.Context, reader Reader) error {
 func (c *Consumer) Handle(ctx context.Context, message kafka.Message) (err error) {
 	ctx = obs.ExtractKafkaTrace(ctx, message.Headers)
 	ctx, span := obs.Tracer().Start(ctx, "kafka.ProcessTransfer", trace.WithSpanKind(trace.SpanKindConsumer))
+	var eventID, transactionID string
+	var duplicate bool
 	defer func() {
+		result := "processed"
+		level := slog.LevelInfo
 		if err != nil {
+			result = "error"
+			level = slog.LevelError
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "event processing failed")
+		} else if duplicate {
+			result = "duplicate"
 		}
+		obs.Log(ctx, level, "transfer event processed",
+			slog.String("event_id", eventID), slog.String("transaction_id", transactionID),
+			slog.String("result", result), slog.Int("partition", message.Partition), slog.Int64("offset", message.Offset))
 		span.End()
 	}()
 	var event events.TransactionPosted
@@ -77,7 +89,8 @@ func (c *Consumer) Handle(ctx context.Context, message kafka.Message) (err error
 		string(message.Key) != event.EventID.String() {
 		return ErrInvalidEvent
 	}
-	span.SetAttributes(attribute.String("event_id", event.EventID.String()))
+	eventID, transactionID = event.EventID.String(), event.TransactionID.String()
+	span.SetAttributes(attribute.String("event_id", eventID))
 	payload, err := json.Marshal(event)
 	if err != nil {
 		return err
@@ -106,6 +119,7 @@ func (c *Consumer) Handle(ctx context.Context, message kafka.Message) (err error
 		return err
 	}
 	span.SetAttributes(attribute.Bool("duplicate", matches))
+	duplicate = matches
 	if !matches {
 		return ErrEventConflict
 	}

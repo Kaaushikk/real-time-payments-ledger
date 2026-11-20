@@ -530,3 +530,27 @@ one successful batch. Grafana's datasource query API returned numeric values
 for each of the six provisioned panels. This verified the dashboard queries.
 The full PostgreSQL suite, vet, Compose and diff checks passed. Temporary
 verification resources were removed. Correlated log ingestion is next.
+
+## November 20, 2026 — correlated logs and Week 3 acceptance
+
+Installed logging packages matching OpenTelemetry 1.33: otelslog 0.8 and the
+0.9 logging SDK/exporter. Logs go to stdout and a bounded OTLP batch processor.
+Transfer, publisher and consumer events carry trace correlation fields and
+selected record IDs/outcomes. The collector uses Loki's native OTLP endpoint.
+The unit test verified matching stdout/native OTLP trace IDs and exclusion of
+context baggage from stdout.
+
+Added a reproducible isolated acceptance stack and PowerShell script. Separate
+service processes verified receipt replay, one pending event during broker
+unavailability, recovery, forced redelivery and one consumer projection.
+Balances reconciled with no negative user wallets. Loki found ledger/consumer
+records by the shared trace ID. The sampled logs omitted both returned tokens
+and the private description. Jaeger parent relationships and all six Grafana
+panel queries passed; Grafana could also query the Loki records.
+
+The initial local regression stalled on PostgreSQL connection close; its test
+and the full suite passed on retry. The initial acceptance attempt reached
+the p99 panel after a long gap and found no current sample. Range queries now
+anchor to scenario time. The successful repeat and evidence are recorded in
+week-3-acceptance.md. Temporary resources were removed. Collector/Compose
+validation, vet and diff checks passed. Week 4 failure experiments are next.

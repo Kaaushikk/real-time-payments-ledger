@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"time"
 
@@ -208,6 +209,8 @@ retryLoop:
 	} else {
 		metrics.Transfers.WithLabelValues("posted").Inc()
 	}
+	obs.Log(ctx, slog.LevelInfo, "transfer completed",
+		slog.String("transaction_id", result.Tx.ID.String()), slog.Bool("replayed", result.Replayed))
 	return result, nil
 }
 

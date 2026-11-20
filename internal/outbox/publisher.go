@@ -131,11 +131,17 @@ func (p *Publisher) flush(ctx context.Context) (err error) {
 	ids := make([]uuid.UUID, 0, len(batch))
 	var eventSpans []trace.Span
 	defer func() {
-		for _, eventSpan := range eventSpans {
+		for i, eventSpan := range eventSpans {
+			result := "success"
+			level := slog.LevelInfo
 			if err != nil {
+				result = "error"
+				level = slog.LevelError
 				eventSpan.RecordError(err)
 				eventSpan.SetStatus(codes.Error, "publication failed")
 			}
+			obs.Log(trace.ContextWithSpan(ctx, eventSpan), level, "outbox publication completed",
+				slog.String("event_id", ids[i].String()), slog.String("result", result))
 			eventSpan.End()
 		}
 	}()

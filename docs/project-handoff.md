@@ -34,7 +34,8 @@ returns an error. Every committed transfer also creates audit records and an
 outbox event. Publisher recovery and consumer deduplication have local Kafka
 and PostgreSQL integration tests. Request-to-consumer trace propagation is
 verified locally. Prometheus and Grafana metrics checks passed against actual
-HTTP transfers and broker recovery. Logs and full telemetry acceptance follow.
+HTTP transfers and broker recovery. Cross-service trace/log correlation and
+Week 3 acceptance passed in an isolated local stack.
 
 ## Corrected design
 
@@ -176,7 +177,8 @@ accounts 404; invalid inputs 400; unexpected server errors use a generic body.
 - Publisher retries and the v1 consumer projection are implemented. Consumer
   failures stop processing for investigation, including older unversioned events.
 - Async traces are connected in the local Kafka integration test and Jaeger.
-- Loki ingestion and full telemetry acceptance need implementation/verification.
+- Loki ingestion and Week 3 local acceptance are verified; see week-3-acceptance.md.
+- Telemetry uses bounded, best-effort queues. Production deployment and Week 4 experiments remain.
 - Existing load script uses one token for both directions; fix before use.
 - Chaos scripts and Helm/Kubernetes files are drafts, not passed experiments.
 - Audit/upgrade inherited dependency versions before deployment.

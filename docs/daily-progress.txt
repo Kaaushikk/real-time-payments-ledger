@@ -605,3 +605,25 @@ Local results recorded at 12:34 Pacific Standard Time.
   passed. Removed the temporary verification stack.
 - This entry accompanies the metrics commit. Push and CI are tracked locally.
   Next is correlated log ingestion.
+
+======================================================================
+2026-11-20 - Correlated logs and Week 3 acceptance
+Local results recorded at 13:22 Pacific Standard Time.
+======================================================================
+- Added the OpenTelemetry slog bridge and bounded log export. Added
+  correlation at transfer, publication and consumer boundaries.
+- Replaced the legacy collector Loki exporter with native OTLP ingestion.
+- Added scripts/verify-week3.ps1 and deployments/docker-compose.acceptance.yml.
+  The local stack runs separate services and uses loopback-only ports.
+- Verified HTTP replay, broker recovery, duplicate delivery, one projection
+  and zero reconciliation mismatches. Jaeger linked separate ledger and
+  consumer services. Loki found their records using the same trace ID.
+- Verified six Grafana panel queries and its Loki query. Sampled records
+  contained neither returned token nor the private transfer description.
+- A local test initially stalled on connection close; retry and full
+  PostgreSQL tests passed. Corrected the acceptance query time range after
+  an expired p99 sample. The full acceptance repeat passed.
+- Removed temporary resources. Collector/Compose validation, vet and diff
+  checks passed. Actual evidence is in docs/week-3-acceptance.md.
+- This entry accompanies the log/acceptance commit. Push and CI are tracked
+  locally. Next is Week 4 failure experiments and reconciliation.

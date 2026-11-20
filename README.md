@@ -2,7 +2,7 @@
 
 A four-week Go project for correct simulated transfers under retries and
 concurrency, with event delivery and full observability planned next.
-**Status: Week 1 ledger correctness and Week 2 API/identity acceptance verified. Week 3 event delivery and telemetry are in progress.**
+**Status: Weeks 1–3 correctness, API/identity, event delivery and telemetry acceptance verified locally. Week 4 failure experiments and delivery remain.**
 
 Read the [complete handoff](docs/project-handoff.md),
 [four-week plan](docs/four-week-plan.md), and [development log](docs/development-log.md).
@@ -253,6 +253,26 @@ returned numeric data for all six provisioned panel queries. These small
 functional checks establish instrumentation behaviour without estimating
 production latency or capacity.
 
+### Correlated logs and Week 3 acceptance
+
+Services send structured logs to stdout and through the OpenTelemetry slog
+bridge. The collector forwards OTLP logs to Loki's native ingestion endpoint.
+Transfer, publication and consumer records carry trace IDs and explicitly
+selected transaction/event fields. Network export uses a bounded background
+queue.
+
+The local acceptance script verifies separate service processes, broker
+recovery, forced event redelivery, reconciliation, connected Jaeger traces,
+Loki correlation and Grafana queries. It also checks that the sampled logs
+exclude the access token, refresh token and private transfer description.
+
+See [Week 3 acceptance and reproduction](docs/week-3-acceptance.md). Run from
+the repository root with PowerShell 7 and Docker Desktop:
+
+```powershell
+pwsh -File scripts/verify-week3.ps1
+```
+
 ## Remaining milestones
 
 The demo authorization server uses registered public clients and S256 PKCE.
@@ -264,7 +284,7 @@ session. Previously issued access tokens remain valid until expiry. The demo
 uses shared JWT signing configuration and a plaintext gRPC connection for
 local development. Keep the demo auth and credentials local.
 
-Log ingestion, full telemetry acceptance and deployment validation are later checkpoints.
+Load and failure experiments, deployment validation and final delivery are later checkpoints.
 
 No claimed 1,000-user capacity, 100% trace coverage, passed chaos count, cloud
 deployment or CI duration. Verified outcomes belong in the development log.

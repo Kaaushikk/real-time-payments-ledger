@@ -2,6 +2,7 @@ package ledger_test
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -31,11 +32,15 @@ import (
 func recordPipelineSpans(t *testing.T) (*tracetest.SpanRecorder, *sdktrace.TracerProvider) {
 	t.Helper()
 	previous := otel.GetTracerProvider()
+	previousLogger := slog.Default()
 	previousPropagator := otel.GetTextMapPropagator()
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	shutdown := provider.Shutdown
 	if endpoint := os.Getenv("TRACE_TEST_OTLP_ENDPOINT"); endpoint != "" {
-		if _, err := obs.Setup(context.Background(), "ledger-trace-verification", endpoint); err != nil {
+		var err error
+		shutdown, err = obs.Setup(context.Background(), "ledger-trace-verification", endpoint)
+		if err != nil {
 			t.Fatal(err)
 		}
 		var ok bool
@@ -50,10 +55,11 @@ func recordPipelineSpans(t *testing.T) (*tracetest.SpanRecorder, *sdktrace.Trace
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := provider.Shutdown(ctx); err != nil {
+		if err := shutdown(ctx); err != nil {
 			t.Error(err)
 		}
 		otel.SetTracerProvider(previous)
+		slog.SetDefault(previousLogger)
 		otel.SetTextMapPropagator(previousPropagator)
 	})
 	return recorder, provider
