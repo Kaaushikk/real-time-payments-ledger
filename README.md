@@ -273,6 +273,18 @@ the repository root with PowerShell 7 and Docker Desktop:
 pwsh -File scripts/verify-week3.ps1
 ```
 
+### Toxiproxy baseline
+
+The Week 4 fault harness routes ledger database traffic through Toxiproxy.
+Its verified baseline sends two authenticated transfers in opposite directions
+and retries one request. It checks balances, journal/audit/receipt deltas,
+event consumption and actual database connections through the proxy.
+
+Run `pwsh -File scripts/verify-fault-baseline.ps1`. The isolated stack
+cleans up by default and records the run in `docs/results/fault-baseline.json`.
+See [baseline evidence and instructions](docs/fault-baseline.md).
+Injected database delay/disconnection cases are the next checkpoint.
+
 ## Remaining milestones
 
 The demo authorization server uses registered public clients and S256 PKCE.

@@ -627,3 +627,23 @@ Local results recorded at 13:22 Pacific Standard Time.
   checks passed. Actual evidence is in docs/week-3-acceptance.md.
 - This entry accompanies the log/acceptance commit. Push and CI are tracked
   locally. Next is Week 4 failure experiments and reconciliation.
+
+======================================================================
+2026-11-22 to 2026-11-23 - Toxiproxy harness and baseline
+Recorded run: 2026-11-23T08:01:17.3292281+00:00 to 2026-11-23T08:02:15.9678983+00:00.
+======================================================================
+- Continued the baseline task carried from November 21. Added a Compose
+  override and scripts/verify-fault-baseline.ps1 using the existing stack.
+- Started Docker Desktop and downloaded the pinned Toxiproxy 2.9 image.
+- The first run failed control-API readiness and cleaned up. Found the
+  browser-style user-agent rejection and set the harness's client identity.
+- The complete repeat passed with three HTTP 200 requests: two new transfers
+  and one retry. Both users used their own tokens.
+- Verified receipt/journal/audit/event deltas, net minus/plus six cents,
+  zero reconciliation mismatches/negative users and zero pending events.
+- Observed two PostgreSQL connections through the enabled proxy, zero toxics.
+- Saved actual timestamps, request durations and snapshots to
+  docs/results/fault-baseline.json. Removed the temporary project.
+- PowerShell parsing, merged Compose configuration and diff checks passed.
+  This entry accompanies the baseline commit; push and CI are tracked locally.
+- Next is database delay/disconnect testing.

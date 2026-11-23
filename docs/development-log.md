@@ -554,3 +554,25 @@ the p99 panel after a long gap and found no current sample. Range queries now
 anchor to scenario time. The successful repeat and evidence are recorded in
 week-3-acceptance.md. Temporary resources were removed. Collector/Compose
 validation, vet and diff checks passed. Week 4 failure experiments are next.
+
+## November 22–23, 2026 — Toxiproxy harness and baseline
+
+Completed the Week 4 baseline checkpoint carried forward from November 21.
+A Compose override reuses the acceptance stack and routes only the ledger's
+database connection through an isolated PostgreSQL proxy. The new script
+requires an enabled proxy with no toxics and uses separate user tokens for
+the forward and reverse transfers.
+
+The first run cleaned up after readiness failed. A small container probe
+showed HTTP 403 from Toxiproxy's browser-user-agent guard. The harness now
+uses its own API client identifier. The repeat passed: three sequential
+requests created two transfers and two receipts, four journal entries, four
+audit records, two events and two projections. Balances changed by minus/plus six cents, reconciled,
+and remained nonnegative for users. PostgreSQL showed two connections from
+the proxy. No events remained pending.
+
+The measured JSON includes UTC timestamps and individual request durations.
+This is a functional baseline with no injected fault. PowerShell parsing and
+merged Compose validation passed. Docker Desktop needed starting, and all
+temporary baseline resources were removed. Next is bounded database delay
+and disconnect testing.

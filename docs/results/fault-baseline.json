@@ -1,0 +1,72 @@
+{
+  "scenario": "no-fault-baseline",
+  "started_at_utc": "2026-11-23T08:01:17.3292281+00:00",
+  "application_commit": "330b4b4ebad56fe4b5df3e34e0e088624485cbcb",
+  "workload": {
+    "retry_requests": 1,
+    "new_transfers": 2,
+    "currency": "USD",
+    "amount_unit": "cents",
+    "requests": 3,
+    "concurrency": 1
+  },
+  "proxy": {
+    "upstream": "postgres:5432",
+    "enabled": true,
+    "toxics": 0,
+    "observed_database_connections": 2
+  },
+  "requests": [
+    {
+      "name": "alice-to-bob",
+      "http_status": 200,
+      "duration_ms": 26.164,
+      "transaction_id": "f5db6e77-b3ab-48e8-853d-c3f616e266b0",
+      "replayed": false
+    },
+    {
+      "name": "same-request-retry",
+      "http_status": 200,
+      "duration_ms": 16.948,
+      "transaction_id": "f5db6e77-b3ab-48e8-853d-c3f616e266b0",
+      "replayed": true
+    },
+    {
+      "name": "bob-to-alice",
+      "http_status": 200,
+      "duration_ms": 21.989,
+      "transaction_id": "c14ad299-4752-4993-b6c1-c4c9e60b5aac",
+      "replayed": false
+    }
+  ],
+  "before": {
+    "receipts": 0,
+    "transfers": 0,
+    "bob_balance": 1000000,
+    "projections": 0,
+    "alice_balance": 1000000,
+    "audit_records": 4,
+    "outbox_events": 0,
+    "total_balance": 0,
+    "negative_users": 0,
+    "pending_events": 0,
+    "journal_entries": 4,
+    "reconciliation_mismatches": 0
+  },
+  "after": {
+    "receipts": 2,
+    "transfers": 2,
+    "bob_balance": 1000006,
+    "projections": 2,
+    "alice_balance": 999994,
+    "audit_records": 8,
+    "outbox_events": 2,
+    "total_balance": 0,
+    "negative_users": 0,
+    "pending_events": 0,
+    "journal_entries": 8,
+    "reconciliation_mismatches": 0
+  },
+  "finished_at_utc": "2026-11-23T08:02:15.9678983+00:00",
+  "cleanup": "temporary project removed"
+}

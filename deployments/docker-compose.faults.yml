@@ -1,0 +1,15 @@
+services:
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.9.0
+    command: ["-host", "0.0.0.0"]
+    ports:
+      - "127.0.0.1:18474:8474"
+    depends_on:
+      postgres:
+        condition: service_healthy
+  ledger:
+    environment:
+      DATABASE_URL: postgres://ledger:ledger@toxiproxy:15432/ledger?sslmode=disable
+    depends_on:
+      toxiproxy:
+        condition: service_started

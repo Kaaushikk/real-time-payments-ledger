@@ -180,7 +180,8 @@ accounts 404; invalid inputs 400; unexpected server errors use a generic body.
 - Loki ingestion and Week 3 local acceptance are verified; see week-3-acceptance.md.
 - Telemetry uses bounded, best-effort queues. Production deployment and Week 4 experiments remain.
 - Existing load script uses one token for both directions; fix before use.
-- Chaos scripts and Helm/Kubernetes files are drafts, not passed experiments.
+- The no-fault Toxiproxy baseline is verified in docs/fault-baseline.md.
+- Injected fault cases and Helm/Kubernetes validation remain pending.
 - Audit/upgrade inherited dependency versions before deployment.
 - No real bank rails, FX, holds, refunds, reversals, disputes, card data or compliance.
 
