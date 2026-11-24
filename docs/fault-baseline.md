@@ -69,9 +69,11 @@ also runs if verification fails.
 
 ## Next checkpoint and debugging
 
-Database latency and disconnection experiments follow this baseline. The
-three requests provide a functional comparison point; throughput and load
-measurements need the later declared-workload experiment.
+Database latency, timeout and in-flight disconnection experiments are now
+verified in [the database-fault guide](database-faults.md). Run the same script
+with -Scenario database to repeat the baseline followed by those cases.
+The three baseline requests provide a functional comparison point; throughput
+and load measurements need the later declared-workload experiment.
 
 The first run could not pass control-API readiness because PowerShell's
 default user agent starts with Mozilla. Toxiproxy returned HTTP 403. Setting

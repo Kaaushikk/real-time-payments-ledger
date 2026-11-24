@@ -647,3 +647,28 @@ Recorded run: 2026-11-23T08:01:17.3292281+00:00 to 2026-11-23T08:02:15.9678983+0
 - PowerShell parsing, merged Compose configuration and diff checks passed.
   This entry accompanies the baseline commit; push and CI are tracked locally.
 - Next is database delay/disconnect testing.
+
+======================================================================
+2026-11-23 - Database fault experiments (W4-D2)
+Run: 2026-11-23 16:08:02 to 16:09:15 Pacific Standard Time.
+======================================================================
+- Extended scripts/verify-fault-baseline.ps1 with -Scenario database.
+  Kept the standalone baseline command and its stored observations intact.
+- Added downstream latency (100 ms), a socket timeout/drop (300 ms), and
+  a connection cut after directly observing a writing database transaction.
+- Used asynchronous requests to observe the active transaction; kept the
+  request body and key unchanged for bounded recovery and receipt replay.
+- Ran: pwsh -File scripts/verify-fault-baseline.ps1 -Scenario database.
+  All three cases passed on the first live run. Initial statuses: 200, 500,
+  500. Both interrupted requests had no committed transfer before recovery.
+- Each recovery passed on its first attempt and every further replay returned
+  the same transaction. Final: five transfers/receipts/events/projections,
+  no pending event, no negative user balance and no journal mismatch.
+- Removed the temporary Docker project. PowerShell parsing and merged
+  Compose validation passed; no application-code fix was required.
+- Saved docs/results/database-faults.json and explained the checks and limits
+  in docs/database-faults.md, README, handoff and development log.
+- Previous checkpoint 15debca was pushed and GitHub CI passed. This entry
+  accompanies the database-fault implementation commit; its push/CI outcome
+  is tracked locally and can be noted in the next entry.
+- No approval blocker remains. Next: broker/cache failure experiments.

@@ -283,7 +283,12 @@ event consumption and actual database connections through the proxy.
 Run `pwsh -File scripts/verify-fault-baseline.ps1`. The isolated stack
 cleans up by default and records the run in `docs/results/fault-baseline.json`.
 See [baseline evidence and instructions](docs/fault-baseline.md).
-Injected database delay/disconnection cases are the next checkpoint.
+Run `pwsh -File scripts/verify-fault-baseline.ps1 -Scenario database` for
+the verified latency, timeout and in-flight disconnection cases. It saves
+`docs/results/database-faults.json` and checks atomic state, safe replay,
+event completion and financial reconciliation after recovery.
+See [database fault evidence and limits](docs/database-faults.md).
+Broker/cache cases and scoped load/deployment validation remain.
 
 ## Remaining milestones
 

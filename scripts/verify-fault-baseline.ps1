@@ -1,4 +1,5 @@
 param(
+    [ValidateSet('baseline','database')][string]$Scenario = 'baseline',
     [switch]$KeepStack,
     [string]$OutputPath = 'docs/results/fault-baseline.json'
 )
@@ -11,6 +12,11 @@ $project = 'ledger-fault-check'
 $control = 'http://127.0.0.1:18474'
 $userAgent = 'payments-ledger-fault-harness/1.0'
 $started = [DateTimeOffset]::UtcNow
+if ($Scenario -eq 'database' -and !$PSBoundParameters.ContainsKey('OutputPath')) {
+    $OutputPath = 'docs/results/database-faults.json'
+}
+$http = [Net.Http.HttpClient]::new()
+$http.Timeout = [TimeSpan]::FromSeconds(15)
 function Invoke-Stack {
     & docker compose -p $project -f $base -f $faults @args
     if ($LASTEXITCODE -ne 0) { throw 'Fault baseline stack command failed' }
@@ -76,6 +82,153 @@ function Transfer([string]$Name, [string]$Token, [string]$From, [string]$To, [st
     return [ordered]@{name=$Name;http_status=$response.StatusCode;duration_ms=[Math]::Round($watch.Elapsed.TotalMilliseconds,3)
         transaction_id=$receipt.transaction.transaction_id;replayed=[bool]$receipt.replayed}
 }
+function Add-DatabaseFault([string]$Name, [string]$Type, [hashtable]$Attributes) {
+    $null = Invoke-RestMethod -UserAgent $userAgent -Method Post -Uri "$control/proxies/postgres/toxics" -TimeoutSec 5 -ContentType 'application/json' -Body (
+        @{name=$Name;type=$Type;stream='downstream';toxicity=1.0;attributes=$Attributes} | ConvertTo-Json -Depth 4 -Compress)
+}
+function Set-DatabaseProxy([bool]$Enabled) {
+    $null = Invoke-RestMethod -UserAgent $userAgent -Method Patch -Uri "$control/proxies/postgres" -TimeoutSec 5 -ContentType 'application/json' -Body (
+        @{enabled=$Enabled} | ConvertTo-Json -Compress)
+}
+function Clear-DatabaseFaults {
+    $toxics = Invoke-RestMethod -UserAgent $userAgent -Uri "$control/proxies/postgres/toxics" -TimeoutSec 5
+    foreach ($toxic in $toxics) {
+        $name = [Uri]::EscapeDataString($toxic.name)
+        $null = Invoke-RestMethod -UserAgent $userAgent -Method Delete -Uri "$control/proxies/postgres/toxics/$name" -TimeoutSec 5
+    }
+    Set-DatabaseProxy $true
+    Assert-ClearProxy
+}
+function Begin-FaultTransfer([string]$Key, [long]$Amount, [int]$TimeoutSeconds) {
+    $body = @{from_account_id=$alice;to_account_id=$bob;amount_minor=$Amount;currency='USD';description='database fault experiment'} | ConvertTo-Json -Compress
+    $request = [Net.Http.HttpRequestMessage]::new([Net.Http.HttpMethod]::Post,'http://127.0.0.1:18080/gateway/v1/transfers')
+    $request.Headers.Authorization = [Net.Http.Headers.AuthenticationHeaderValue]::new('Bearer',$aliceTokens.access_token)
+    $null = $request.Headers.TryAddWithoutValidation('Idempotency-Key',$Key)
+    $request.Content = [Net.Http.StringContent]::new($body,[Text.Encoding]::UTF8,'application/json')
+    $deadline = [Threading.CancellationTokenSource]::new([TimeSpan]::FromSeconds($TimeoutSeconds))
+    $watch = [Diagnostics.Stopwatch]::StartNew()
+    $task = $http.SendAsync($request,$deadline.Token)
+    return @{task=$task;request=$request;deadline=$deadline;watch=$watch}
+}
+function Finish-FaultTransfer([string]$Name, $Pending) {
+    $response = $null
+    $status = 0
+    $transport = $null
+    $receipt = $null
+    try {
+        try {
+            $response = $Pending.task.GetAwaiter().GetResult()
+            $status = [int]$response.StatusCode
+        } catch {
+            $cause = $_.Exception.GetBaseException()
+            if ($cause -isnot [Net.Http.HttpRequestException] -and $cause -isnot [OperationCanceledException]) { throw }
+            $transport = $cause.GetType().Name
+        }
+        $Pending.watch.Stop()
+        if ($status -eq 200) {
+            $receipt = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult() | ConvertFrom-Json
+        }
+        return [ordered]@{name=$Name;http_status=$status;transport_error=$transport
+            observed_elapsed_ms=[Math]::Round($Pending.watch.Elapsed.TotalMilliseconds,3)
+            transaction_id=$receipt.transaction.transaction_id;replayed=$receipt.replayed}
+    } finally {
+        $Pending.watch.Stop()
+        if ($response) { $response.Dispose() }
+        $Pending.request.Dispose()
+        $Pending.deadline.Dispose()
+    }
+}
+function Assert-TransferState($Before, $After, [long]$Amount, [int]$Count, [switch]$Drained) {
+    if ($Count -lt 0 -or $Count -gt 1) { throw 'One request produced an invalid transfer count' }
+    foreach ($field in @{transfers=1;receipts=1;journal_entries=2;audit_records=2;outbox_events=1}.GetEnumerator()) {
+        if ([long]$After.($field.Key) - [long]$Before.($field.Key) -ne $Count*$field.Value) {
+            throw "Partial or duplicate state in $($field.Key)"
+        }
+    }
+    $projections = [long]$After.projections - [long]$Before.projections
+    if ($projections -lt 0 -or $projections -gt $Count -or $After.pending_events -gt $Count) {
+        throw 'Unexpected event processing state'
+    }
+    if ($Drained -and ($projections -ne $Count -or $After.pending_events -ne 0)) { throw 'Events did not drain' }
+    if ($After.alice_balance -ne ([long]$Before.alice_balance - $Amount*$Count) -or
+        $After.bob_balance -ne ([long]$Before.bob_balance + $Amount*$Count) -or
+        $After.total_balance -ne 0 -or $After.negative_users -ne 0 -or $After.reconciliation_mismatches -ne 0) {
+        throw 'Financial state failed reconciliation'
+    }
+}
+function Run-DatabaseCase([string]$Kind, [long]$Amount) {
+    Assert-ClearProxy
+    $beforeCase = Snapshot
+    $key = [guid]::NewGuid().ToString()
+    $pending = $null
+    $inFlight = $false
+    try {
+        switch ($Kind) {
+            'latency' { Add-DatabaseFault 'request-latency' 'latency' @{latency=100;jitter=0} }
+            'timeout' { Add-DatabaseFault 'request-timeout' 'timeout' @{timeout=300} }
+            'disconnect' { Add-DatabaseFault 'disconnect-gate' 'latency' @{latency=500;jitter=0} }
+        }
+        $pending = Begin-FaultTransfer $key $Amount 8
+        if ($Kind -eq 'disconnect') {
+            $until = [DateTimeOffset]::UtcNow.AddSeconds(5)
+            do {
+                $active = [int](Sql "SELECT count(*) FROM pg_stat_activity WHERE datname='ledger' AND client_addr='$proxyIp'::inet AND state='idle in transaction' AND backend_xid IS NOT NULL")
+                if ($active -gt 0) { $inFlight=$true; break }
+                Start-Sleep -Milliseconds 50
+            } while ([DateTimeOffset]::UtcNow -lt $until)
+            if (!$inFlight) { throw 'Did not observe an in-flight writing transaction before disconnect' }
+            Set-DatabaseProxy $false
+        }
+        $attempt = Finish-FaultTransfer "$Kind-attempt" $pending
+        $pending = $null
+        if ($Kind -eq 'latency' -and $attempt.http_status -ne 200) { throw 'Latency case did not complete within its deadline' }
+        if ($Kind -ne 'latency' -and $attempt.http_status -eq 200) { throw 'The injected failure did not interrupt the request' }
+        $during = Snapshot
+        $committed = [int]$during.transfers - [int]$beforeCase.transfers
+        Assert-TransferState $beforeCase $during $Amount $committed
+        if ($Kind -eq 'disconnect' -and $committed -ne 0) { throw 'In-flight disconnect committed unexpectedly' }
+    } finally {
+        if ($pending) {
+            $pending.deadline.Cancel()
+            $null = Finish-FaultTransfer 'cancelled-experiment' $pending
+        }
+        Clear-DatabaseFaults
+    }
+    Wait-Ready 'http://127.0.0.1:18080/readyz'
+    $recoveryAttempts = @()
+    for ($i=0; $i -lt 5; $i++) {
+        $pendingRecovery = Begin-FaultTransfer $key $Amount 8
+        $recovery = Finish-FaultTransfer "$Kind-recovery-$i" $pendingRecovery
+        $recoveryAttempts += $recovery
+        if ($recovery.http_status -eq 200) { break }
+        if ($recovery.http_status -gt 0 -and $recovery.http_status -lt 500) { throw 'Recovery returned a client error' }
+        Start-Sleep -Milliseconds 500
+    }
+    if ($recovery.http_status -ne 200) { throw 'Recovery exhausted its bounded retries' }
+    $pendingRetry = Begin-FaultTransfer $key $Amount 8
+    $retry = Finish-FaultTransfer "$Kind-replay" $pendingRetry
+    if ($retry.http_status -ne 200 -or !$retry.replayed -or $retry.transaction_id -ne $recovery.transaction_id -or
+        [bool]$recovery.replayed -ne ($committed -eq 1)) { throw 'Recovery did not preserve the durable receipt' }
+    if ($attempt.http_status -eq 200 -and $attempt.transaction_id -ne $recovery.transaction_id) { throw 'Recovery changed the original transaction' }
+    $targetCount = [long]$beforeCase.projections + 1
+    Wait-Check {
+        (Sql 'SELECT count(*) FROM consumed_transfers') -eq [string]$targetCount -and
+        (Sql 'SELECT count(*) FROM outbox WHERE published_at IS NULL') -eq '0'
+    } 'Recovered event did not fully drain'
+    $afterCase = Snapshot
+    Assert-TransferState $beforeCase $afterCase $Amount 1 -Drained
+    Assert-ClearProxy
+    Write-Host "Verified database case: $Kind"
+    return [ordered]@{fault=$Kind;amount_minor=$Amount;in_flight_transaction_observed=$inFlight
+        parameters=$(switch ($Kind) {
+            'latency' { @{type='latency';downstream_ms=100;jitter_ms=0} }
+            'timeout' { @{type='timeout';close_after_ms=300} }
+            'disconnect' { @{type='proxy-disabled';gate_downstream_ms=500} }
+        })
+        initial_attempt=$attempt;committed_after_attempt=$committed;state_after_attempt=$during
+        recovery_attempts=$recoveryAttempts;recovery=$recovery;replay=$retry;before=$beforeCase;after=$afterCase}
+}
+
 $existing = docker ps -aq --filter "label=com.docker.compose.project=$project"
 if ($LASTEXITCODE -ne 0) { throw 'Docker is unavailable' }
 if ($existing) { throw 'Inspect or remove the existing ledger-fault-check project before another run' }
@@ -138,7 +291,18 @@ try {
         proxy=@{enabled=$true;toxics=0;upstream='postgres:5432';observed_database_connections=$connections}
         requests=$requests;before=$before;after=$after
     }
+    if ($Scenario -eq 'database') {
+        $cases = @(
+            (Run-DatabaseCase 'latency' 19),
+            (Run-DatabaseCase 'timeout' 23),
+            (Run-DatabaseCase 'disconnect' 29)
+        )
+        $result['scenario'] = 'database-faults'
+        $result['cases'] = $cases
+        $result['final_after_cases'] = Snapshot
+    }
 } finally {
+    $http.Dispose()
     if (!$KeepStack) {
         & docker compose -p $project -f $base -f $faults down --volumes
         if ($LASTEXITCODE -ne 0) { throw 'Baseline stack cleanup failed' }

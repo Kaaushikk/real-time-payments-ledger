@@ -576,3 +576,31 @@ This is a functional baseline with no injected fault. PowerShell parsing and
 merged Compose validation passed. Docker Desktop needed starting, and all
 temporary baseline resources were removed. Next is bounded database delay
 and disconnect testing.
+
+## November 23, 2026 — database latency, timeout and disconnect
+
+Extended the existing fault harness with an opt-in database scenario, leaving
+the baseline command and its result file intact. Each case injects one fault,
+records the initial state, clears the fault, retries the identical request,
+and confirms a further replay. Recovery attempts are bounded and recorded.
+
+The live run passed all three cases. A 100 ms downstream delay allowed the
+transfer to complete. A 300 ms downstream drop/close returned HTTP 500 with
+no committed transfer. For the disconnect, the harness observed an assigned
+PostgreSQL transaction ID on a proxied idle-in-transaction session before
+cutting the connection; the request returned 500 and rolled back. Restoring
+the connection allowed each interrupted request to commit once. All recovered
+receipts replayed the same transaction, with matching table deltas and events.
+
+The disconnect uses asynchronous HttpClient so direct database polling can
+run while the request is active. The initial and recovery bodies share the
+same description to preserve the idempotency fingerprint. This checkpoint
+needed no application-code change. The live run passed on its first attempt;
+the prior baseline's user-agent fix remains in use.
+
+Final state: five transfers, five receipts, five outbox events/projections,
+zero pending events, no negative user balances and zero journal mismatches.
+The temporary Docker project was removed. The JSON records individual
+observations and UTC times; these are small functional experiments, not load
+results or exhaustive crash tests. PowerShell parsing, merged Compose and
+diff checks passed. Next is the broker/cache outage checkpoint.

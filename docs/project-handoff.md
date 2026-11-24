@@ -181,7 +181,10 @@ accounts 404; invalid inputs 400; unexpected server errors use a generic body.
 - Telemetry uses bounded, best-effort queues. Production deployment and Week 4 experiments remain.
 - Existing load script uses one token for both directions; fix before use.
 - The no-fault Toxiproxy baseline is verified in docs/fault-baseline.md.
-- Injected fault cases and Helm/Kubernetes validation remain pending.
+- Database latency, timeout and in-flight disconnect cases passed locally;
+  see database-faults.md and results/database-faults.json. Each recovered to one
+  transfer with no reconciliation mismatches. Both interrupted requests returned 500.
+- Broker/cache fault cases, scoped load and Helm/Kubernetes validation remain pending.
 - Audit/upgrade inherited dependency versions before deployment.
 - No real bank rails, FX, holds, refunds, reversals, disputes, card data or compliance.
 

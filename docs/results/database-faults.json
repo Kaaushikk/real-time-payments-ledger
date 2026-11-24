@@ -1,0 +1,347 @@
+{
+  "scenario": "database-faults",
+  "started_at_utc": "2026-11-24T00:08:02.2944159+00:00",
+  "application_commit": "15debcaaaaac6e16a7aa8ef6bd450a58f8dd75a6",
+  "workload": {
+    "new_transfers": 2,
+    "requests": 3,
+    "concurrency": 1,
+    "currency": "USD",
+    "retry_requests": 1,
+    "amount_unit": "cents"
+  },
+  "proxy": {
+    "observed_database_connections": 1,
+    "upstream": "postgres:5432",
+    "toxics": 0,
+    "enabled": true
+  },
+  "requests": [
+    {
+      "name": "alice-to-bob",
+      "http_status": 200,
+      "duration_ms": 40.282,
+      "transaction_id": "eaa0c952-2ee7-4b64-a24b-3dd5a3c9e381",
+      "replayed": false
+    },
+    {
+      "name": "same-request-retry",
+      "http_status": 200,
+      "duration_ms": 9.15,
+      "transaction_id": "eaa0c952-2ee7-4b64-a24b-3dd5a3c9e381",
+      "replayed": true
+    },
+    {
+      "name": "bob-to-alice",
+      "http_status": 200,
+      "duration_ms": 21.67,
+      "transaction_id": "dd666b23-9e9e-499a-9bd0-e4c5eadb7ee8",
+      "replayed": false
+    }
+  ],
+  "before": {
+    "receipts": 0,
+    "transfers": 0,
+    "bob_balance": 1000000,
+    "projections": 0,
+    "alice_balance": 1000000,
+    "audit_records": 4,
+    "outbox_events": 0,
+    "total_balance": 0,
+    "negative_users": 0,
+    "pending_events": 0,
+    "journal_entries": 4,
+    "reconciliation_mismatches": 0
+  },
+  "after": {
+    "receipts": 2,
+    "transfers": 2,
+    "bob_balance": 1000006,
+    "projections": 2,
+    "alice_balance": 999994,
+    "audit_records": 8,
+    "outbox_events": 2,
+    "total_balance": 0,
+    "negative_users": 0,
+    "pending_events": 0,
+    "journal_entries": 8,
+    "reconciliation_mismatches": 0
+  },
+  "cases": [
+    {
+      "fault": "latency",
+      "amount_minor": 19,
+      "in_flight_transaction_observed": false,
+      "parameters": {
+        "downstream_ms": 100,
+        "jitter_ms": 0,
+        "type": "latency"
+      },
+      "initial_attempt": {
+        "name": "latency-attempt",
+        "http_status": 200,
+        "transport_error": null,
+        "observed_elapsed_ms": 1255.41,
+        "transaction_id": "ea90b4d2-25be-4ae3-a551-11cf1fb22897",
+        "replayed": false
+      },
+      "committed_after_attempt": 1,
+      "state_after_attempt": {
+        "receipts": 3,
+        "transfers": 3,
+        "bob_balance": 1000025,
+        "projections": 3,
+        "alice_balance": 999975,
+        "audit_records": 10,
+        "outbox_events": 3,
+        "total_balance": 0,
+        "negative_users": 0,
+        "pending_events": 0,
+        "journal_entries": 10,
+        "reconciliation_mismatches": 0
+      },
+      "recovery_attempts": [
+        {
+          "name": "latency-recovery-0",
+          "http_status": 200,
+          "transport_error": null,
+          "observed_elapsed_ms": 10.793,
+          "transaction_id": "ea90b4d2-25be-4ae3-a551-11cf1fb22897",
+          "replayed": true
+        }
+      ],
+      "recovery": {
+        "name": "latency-recovery-0",
+        "http_status": 200,
+        "transport_error": null,
+        "observed_elapsed_ms": 10.793,
+        "transaction_id": "ea90b4d2-25be-4ae3-a551-11cf1fb22897",
+        "replayed": true
+      },
+      "replay": {
+        "name": "latency-replay",
+        "http_status": 200,
+        "transport_error": null,
+        "observed_elapsed_ms": 5.44,
+        "transaction_id": "ea90b4d2-25be-4ae3-a551-11cf1fb22897",
+        "replayed": true
+      },
+      "before": {
+        "receipts": 2,
+        "transfers": 2,
+        "bob_balance": 1000006,
+        "projections": 2,
+        "alice_balance": 999994,
+        "audit_records": 8,
+        "outbox_events": 2,
+        "total_balance": 0,
+        "negative_users": 0,
+        "pending_events": 0,
+        "journal_entries": 8,
+        "reconciliation_mismatches": 0
+      },
+      "after": {
+        "receipts": 3,
+        "transfers": 3,
+        "bob_balance": 1000025,
+        "projections": 3,
+        "alice_balance": 999975,
+        "audit_records": 10,
+        "outbox_events": 3,
+        "total_balance": 0,
+        "negative_users": 0,
+        "pending_events": 0,
+        "journal_entries": 10,
+        "reconciliation_mismatches": 0
+      }
+    },
+    {
+      "fault": "timeout",
+      "amount_minor": 23,
+      "in_flight_transaction_observed": false,
+      "parameters": {
+        "close_after_ms": 300,
+        "type": "timeout"
+      },
+      "initial_attempt": {
+        "name": "timeout-attempt",
+        "http_status": 500,
+        "transport_error": null,
+        "observed_elapsed_ms": 304.364,
+        "transaction_id": null,
+        "replayed": null
+      },
+      "committed_after_attempt": 0,
+      "state_after_attempt": {
+        "receipts": 3,
+        "transfers": 3,
+        "bob_balance": 1000025,
+        "projections": 3,
+        "alice_balance": 999975,
+        "audit_records": 10,
+        "outbox_events": 3,
+        "total_balance": 0,
+        "negative_users": 0,
+        "pending_events": 0,
+        "journal_entries": 10,
+        "reconciliation_mismatches": 0
+      },
+      "recovery_attempts": [
+        {
+          "name": "timeout-recovery-0",
+          "http_status": 200,
+          "transport_error": null,
+          "observed_elapsed_ms": 26.996,
+          "transaction_id": "cf8f5f5e-a99d-4f7d-8198-ff88907830cd",
+          "replayed": false
+        }
+      ],
+      "recovery": {
+        "name": "timeout-recovery-0",
+        "http_status": 200,
+        "transport_error": null,
+        "observed_elapsed_ms": 26.996,
+        "transaction_id": "cf8f5f5e-a99d-4f7d-8198-ff88907830cd",
+        "replayed": false
+      },
+      "replay": {
+        "name": "timeout-replay",
+        "http_status": 200,
+        "transport_error": null,
+        "observed_elapsed_ms": 20.201,
+        "transaction_id": "cf8f5f5e-a99d-4f7d-8198-ff88907830cd",
+        "replayed": true
+      },
+      "before": {
+        "receipts": 3,
+        "transfers": 3,
+        "bob_balance": 1000025,
+        "projections": 3,
+        "alice_balance": 999975,
+        "audit_records": 10,
+        "outbox_events": 3,
+        "total_balance": 0,
+        "negative_users": 0,
+        "pending_events": 0,
+        "journal_entries": 10,
+        "reconciliation_mismatches": 0
+      },
+      "after": {
+        "receipts": 4,
+        "transfers": 4,
+        "bob_balance": 1000048,
+        "projections": 4,
+        "alice_balance": 999952,
+        "audit_records": 12,
+        "outbox_events": 4,
+        "total_balance": 0,
+        "negative_users": 0,
+        "pending_events": 0,
+        "journal_entries": 12,
+        "reconciliation_mismatches": 0
+      }
+    },
+    {
+      "fault": "disconnect",
+      "amount_minor": 29,
+      "in_flight_transaction_observed": true,
+      "parameters": {
+        "gate_downstream_ms": 500,
+        "type": "proxy-disabled"
+      },
+      "initial_attempt": {
+        "name": "disconnect-attempt",
+        "http_status": 500,
+        "transport_error": null,
+        "observed_elapsed_ms": 895.17,
+        "transaction_id": null,
+        "replayed": null
+      },
+      "committed_after_attempt": 0,
+      "state_after_attempt": {
+        "receipts": 4,
+        "transfers": 4,
+        "bob_balance": 1000048,
+        "projections": 4,
+        "alice_balance": 999952,
+        "audit_records": 12,
+        "outbox_events": 4,
+        "total_balance": 0,
+        "negative_users": 0,
+        "pending_events": 0,
+        "journal_entries": 12,
+        "reconciliation_mismatches": 0
+      },
+      "recovery_attempts": [
+        {
+          "name": "disconnect-recovery-0",
+          "http_status": 200,
+          "transport_error": null,
+          "observed_elapsed_ms": 30.244,
+          "transaction_id": "d39acc6c-b16e-4155-9fbe-4645d81602ea",
+          "replayed": false
+        }
+      ],
+      "recovery": {
+        "name": "disconnect-recovery-0",
+        "http_status": 200,
+        "transport_error": null,
+        "observed_elapsed_ms": 30.244,
+        "transaction_id": "d39acc6c-b16e-4155-9fbe-4645d81602ea",
+        "replayed": false
+      },
+      "replay": {
+        "name": "disconnect-replay",
+        "http_status": 200,
+        "transport_error": null,
+        "observed_elapsed_ms": 4.288,
+        "transaction_id": "d39acc6c-b16e-4155-9fbe-4645d81602ea",
+        "replayed": true
+      },
+      "before": {
+        "receipts": 4,
+        "transfers": 4,
+        "bob_balance": 1000048,
+        "projections": 4,
+        "alice_balance": 999952,
+        "audit_records": 12,
+        "outbox_events": 4,
+        "total_balance": 0,
+        "negative_users": 0,
+        "pending_events": 0,
+        "journal_entries": 12,
+        "reconciliation_mismatches": 0
+      },
+      "after": {
+        "receipts": 5,
+        "transfers": 5,
+        "bob_balance": 1000077,
+        "projections": 5,
+        "alice_balance": 999923,
+        "audit_records": 14,
+        "outbox_events": 5,
+        "total_balance": 0,
+        "negative_users": 0,
+        "pending_events": 0,
+        "journal_entries": 14,
+        "reconciliation_mismatches": 0
+      }
+    }
+  ],
+  "final_after_cases": {
+    "receipts": 5,
+    "transfers": 5,
+    "bob_balance": 1000077,
+    "projections": 5,
+    "alice_balance": 999923,
+    "audit_records": 14,
+    "outbox_events": 5,
+    "total_balance": 0,
+    "negative_users": 0,
+    "pending_events": 0,
+    "journal_entries": 14,
+    "reconciliation_mismatches": 0
+  },
+  "finished_at_utc": "2026-11-24T00:09:15.9904221+00:00",
+  "cleanup": "temporary project removed"
+}
