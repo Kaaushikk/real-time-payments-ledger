@@ -288,7 +288,12 @@ the verified latency, timeout and in-flight disconnection cases. It saves
 `docs/results/database-faults.json` and checks atomic state, safe replay,
 event completion and financial reconciliation after recovery.
 See [database fault evidence and limits](docs/database-faults.md).
-Broker/cache cases and scoped load/deployment validation remain.
+Run `pwsh -File scripts/verify-fault-baseline.ps1 -Scenario broker` to stop
+Kafka, verify pending-event durability and ledger restart replay, then restore
+Kafka and check a forced duplicate publication. See
+[broker recovery evidence and limits](docs/broker-faults.md). Redis is unused
+by the receipt store; no cache failover is claimed. Scoped load/deployment
+validation remains.
 
 ## Remaining milestones
 

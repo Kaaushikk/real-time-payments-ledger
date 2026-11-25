@@ -604,3 +604,27 @@ The temporary Docker project was removed. The JSON records individual
 observations and UTC times; these are small functional experiments, not load
 results or exhaustive crash tests. PowerShell parsing, merged Compose and
 diff checks passed. Next is the broker/cache outage checkpoint.
+
+## November 24, 2026 — broker outage and process-independent replay
+
+Added an opt-in broker scenario to the existing fault harness. It stops Kafka,
+posts a 37-cent transfer, verifies its receipt replay and one pending event,
+and requires a publication error. It restarts the ledger while Kafka is still
+stopped to verify durable receipt replay and retention of the event identity,
+schema version and payload. Redis remains outside the receipt implementation;
+the harness runs with no Redis service and claims no cache failover.
+
+The first live run passed. The consumer was still running after the broker
+outage; the harness explicitly restarted it after broker readiness as a
+controlled recovery step. The original event drained into one projection.
+Resetting that event's publication marker caused a second actual Kafka
+delivery: partition zero, offsets two and three. The second was logged as a
+duplicate. Counts, balances and journal reconciliation were unchanged.
+
+The complete run used seven transfer requests and finished with three
+transfers, receipts, outbox events and consumer projections. No events remained
+pending, user balances were nonnegative and journal totals matched balances.
+No application-code change was needed. The temporary Docker project was
+removed. PowerShell parsing, merged Compose and diff checks passed. Evidence
+and limitations are in broker-faults.md and results/broker-faults.json.
+Next is a scoped load experiment with correct user-token handling.

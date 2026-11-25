@@ -1,0 +1,243 @@
+{
+  "scenario": "broker-faults",
+  "started_at_utc": "2026-11-25T05:25:04.9023849+00:00",
+  "application_commit": "86548ff87da2f3264e6c71aa0d251da2a924b236",
+  "workload": {
+    "new_transfers": 2,
+    "concurrency": 1,
+    "amount_unit": "cents",
+    "retry_requests": 1,
+    "requests": 3,
+    "currency": "USD"
+  },
+  "proxy": {
+    "upstream": "postgres:5432",
+    "enabled": true,
+    "toxics": 0,
+    "observed_database_connections": 1
+  },
+  "requests": [
+    {
+      "name": "alice-to-bob",
+      "http_status": 200,
+      "duration_ms": 30.666,
+      "transaction_id": "ae83381b-7f91-4f31-ab4e-ec691f4085a6",
+      "replayed": false
+    },
+    {
+      "name": "same-request-retry",
+      "http_status": 200,
+      "duration_ms": 6.21,
+      "transaction_id": "ae83381b-7f91-4f31-ab4e-ec691f4085a6",
+      "replayed": true
+    },
+    {
+      "name": "bob-to-alice",
+      "http_status": 200,
+      "duration_ms": 11.292,
+      "transaction_id": "40d0153f-c01e-466e-bb87-e28e6145ed66",
+      "replayed": false
+    }
+  ],
+  "before": {
+    "receipts": 0,
+    "transfers": 0,
+    "bob_balance": 1000000,
+    "projections": 0,
+    "alice_balance": 1000000,
+    "audit_records": 4,
+    "outbox_events": 0,
+    "total_balance": 0,
+    "negative_users": 0,
+    "pending_events": 0,
+    "journal_entries": 4,
+    "reconciliation_mismatches": 0
+  },
+  "after": {
+    "receipts": 2,
+    "transfers": 2,
+    "bob_balance": 1000006,
+    "projections": 2,
+    "alice_balance": 999994,
+    "audit_records": 8,
+    "outbox_events": 2,
+    "total_balance": 0,
+    "negative_users": 0,
+    "pending_events": 0,
+    "journal_entries": 8,
+    "reconciliation_mismatches": 0
+  },
+  "broker_case": {
+    "outage": {
+      "broker_restart_at_utc": "2026-11-25T05:26:04.3747498+00:00",
+      "consumer_state_before_explicit_restart": "running",
+      "stopped_at_utc": "2026-11-25T05:25:56.0835672+00:00",
+      "drained_at_utc": "2026-11-25T05:26:38.3247783+00:00",
+      "publisher_errors_before_restart": 1.0,
+      "consumer_restarted_by_harness": true
+    },
+    "redis": {
+      "service_in_harness": false,
+      "used_by_receipt_store": false,
+      "note": "PostgreSQL receipts remain authoritative; no Redis failover is implemented or claimed"
+    },
+    "requests": [
+      {
+        "name": "broker-down-transfer",
+        "http_status": 200,
+        "duration_ms": 14.676,
+        "transaction_id": "a2cfc0fc-51d5-4860-b0e6-8387ffb3e826",
+        "replayed": false
+      },
+      {
+        "name": "broker-down-replay",
+        "http_status": 200,
+        "duration_ms": 5.341,
+        "transaction_id": "a2cfc0fc-51d5-4860-b0e6-8387ffb3e826",
+        "replayed": true
+      },
+      {
+        "name": "broker-down-ledger-restart-replay",
+        "http_status": 200,
+        "duration_ms": 8.862,
+        "transaction_id": "a2cfc0fc-51d5-4860-b0e6-8387ffb3e826",
+        "replayed": true
+      },
+      {
+        "name": "broker-restored-replay",
+        "http_status": 200,
+        "duration_ms": 9.104,
+        "transaction_id": "a2cfc0fc-51d5-4860-b0e6-8387ffb3e826",
+        "replayed": true
+      }
+    ],
+    "event_before": {
+      "pending": true,
+      "event_id": "6996d84a-8b7c-4ced-b835-876559cc0ca4",
+      "payload_hash": "b2c47b6ab2e9b3ac8740bf5b62064024",
+      "published_at": null,
+      "schema_version": 1
+    },
+    "event_after_ledger_restart": {
+      "pending": true,
+      "event_id": "6996d84a-8b7c-4ced-b835-876559cc0ca4",
+      "payload_hash": "b2c47b6ab2e9b3ac8740bf5b62064024",
+      "published_at": null,
+      "schema_version": 1
+    },
+    "event_recovered": {
+      "pending": false,
+      "event_id": "6996d84a-8b7c-4ced-b835-876559cc0ca4",
+      "payload_hash": "b2c47b6ab2e9b3ac8740bf5b62064024",
+      "published_at": "2026-11-24T21:26:12.104349-08:00",
+      "schema_version": 1
+    },
+    "event_redelivered": {
+      "pending": false,
+      "event_id": "6996d84a-8b7c-4ced-b835-876559cc0ca4",
+      "payload_hash": "b2c47b6ab2e9b3ac8740bf5b62064024",
+      "published_at": "2026-11-24T21:26:39.35155-08:00",
+      "schema_version": 1
+    },
+    "processed_delivery": {
+      "event_id": "6996d84a-8b7c-4ced-b835-876559cc0ca4",
+      "transaction_id": "a2cfc0fc-51d5-4860-b0e6-8387ffb3e826",
+      "result": "processed",
+      "partition": 0,
+      "offset": 2
+    },
+    "duplicate_delivery": {
+      "event_id": "6996d84a-8b7c-4ced-b835-876559cc0ca4",
+      "transaction_id": "a2cfc0fc-51d5-4860-b0e6-8387ffb3e826",
+      "result": "duplicate",
+      "partition": 0,
+      "offset": 3
+    },
+    "before": {
+      "receipts": 2,
+      "transfers": 2,
+      "bob_balance": 1000006,
+      "projections": 2,
+      "alice_balance": 999994,
+      "audit_records": 8,
+      "outbox_events": 2,
+      "total_balance": 0,
+      "negative_users": 0,
+      "pending_events": 0,
+      "journal_entries": 8,
+      "reconciliation_mismatches": 0
+    },
+    "during_outage": {
+      "receipts": 3,
+      "transfers": 3,
+      "bob_balance": 1000043,
+      "projections": 2,
+      "alice_balance": 999957,
+      "audit_records": 10,
+      "outbox_events": 3,
+      "total_balance": 0,
+      "negative_users": 0,
+      "pending_events": 1,
+      "journal_entries": 10,
+      "reconciliation_mismatches": 0
+    },
+    "after_ledger_restart": {
+      "receipts": 3,
+      "transfers": 3,
+      "bob_balance": 1000043,
+      "projections": 2,
+      "alice_balance": 999957,
+      "audit_records": 10,
+      "outbox_events": 3,
+      "total_balance": 0,
+      "negative_users": 0,
+      "pending_events": 1,
+      "journal_entries": 10,
+      "reconciliation_mismatches": 0
+    },
+    "after_recovery": {
+      "receipts": 3,
+      "transfers": 3,
+      "bob_balance": 1000043,
+      "projections": 3,
+      "alice_balance": 999957,
+      "audit_records": 10,
+      "outbox_events": 3,
+      "total_balance": 0,
+      "negative_users": 0,
+      "pending_events": 0,
+      "journal_entries": 10,
+      "reconciliation_mismatches": 0
+    },
+    "after_duplicate": {
+      "receipts": 3,
+      "transfers": 3,
+      "bob_balance": 1000043,
+      "projections": 3,
+      "alice_balance": 999957,
+      "audit_records": 10,
+      "outbox_events": 3,
+      "total_balance": 0,
+      "negative_users": 0,
+      "pending_events": 0,
+      "journal_entries": 10,
+      "reconciliation_mismatches": 0
+    }
+  },
+  "final_after_cases": {
+    "receipts": 3,
+    "transfers": 3,
+    "bob_balance": 1000043,
+    "projections": 3,
+    "alice_balance": 999957,
+    "audit_records": 10,
+    "outbox_events": 3,
+    "total_balance": 0,
+    "negative_users": 0,
+    "pending_events": 0,
+    "journal_entries": 10,
+    "reconciliation_mismatches": 0
+  },
+  "finished_at_utc": "2026-11-25T05:26:47.1017514+00:00",
+  "cleanup": "temporary project removed"
+}

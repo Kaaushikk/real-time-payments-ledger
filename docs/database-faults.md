@@ -97,5 +97,7 @@ and [latency implementation](https://github.com/Shopify/toxiproxy/blob/v2.9.0/to
   a harness; no application implementation change was needed.
 - This run did not cut the connection specifically after COMMIT but before
   receipt delivery. It does not claim exhaustive crash-boundary coverage.
-- Kafka/Redis outages, declared-workload load tests, Helm/Kubernetes validation
-  and a clean-checkout demonstration remain separate checkpoints.
+- Kafka-stop recovery and forced redelivery are verified separately in
+  [broker-faults.md](broker-faults.md). Redis is unused by the receipt store.
+  Declared-workload load tests, Helm/Kubernetes validation and a clean-checkout
+  demonstration remain separate checkpoints.

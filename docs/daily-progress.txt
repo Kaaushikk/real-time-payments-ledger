@@ -672,3 +672,28 @@ Run: 2026-11-23 16:08:02 to 16:09:15 Pacific Standard Time.
   accompanies the database-fault implementation commit; its push/CI outcome
   is tracked locally and can be noted in the next entry.
 - No approval blocker remains. Next: broker/cache failure experiments.
+
+======================================================================
+2026-11-24 - Broker outage and durable replay (W4-D3)
+Run: 2026-11-24T21:25:04.902384-08:00 to 2026-11-24T21:26:47.101751-08:00.
+======================================================================
+- Extended scripts/verify-fault-baseline.ps1 with -Scenario broker.
+- Ran: pwsh -File scripts/verify-fault-baseline.ps1 -Scenario broker.
+  The first live run passed, including the no-fault baseline.
+- Stopped Kafka, committed one 37-cent transfer, replayed its receipt and
+  observed one pending event and a publication error. Restarted the ledger
+  with Kafka still stopped; replay returned the original transaction.
+- Checked that the event ID, version and payload stayed unchanged.
+- Restored Kafka and explicitly restarted the consumer. One projection was
+  stored. Reset the event's publication marker to force redelivery; Kafka
+  offsets 2 and 3 were processed/duplicate with no extra projection.
+- Seven HTTP requests returned 200. Final: three transfers/receipts/events/
+  projections, no pending event, negative user balance or journal mismatch.
+- Redis is unused in the receipt implementation. This run had no Redis
+  service; it does not claim a tested cache fallback. No app-code fix needed.
+- Saved docs/results/broker-faults.json, wrote docs/broker-faults.md and
+  updated README, handoff, database-fault notes and development log.
+- Removed the temporary stack. PowerShell parsing, merged Compose and diff
+  checks passed. Prior commit 86548ff is pushed and GitHub CI passed.
+- This entry accompanies the broker-test commit; its push/CI outcome is
+  tracked locally. No blocker remains. Next: scoped load measurements.

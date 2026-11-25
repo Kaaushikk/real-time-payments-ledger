@@ -184,7 +184,10 @@ accounts 404; invalid inputs 400; unexpected server errors use a generic body.
 - Database latency, timeout and in-flight disconnect cases passed locally;
   see database-faults.md and results/database-faults.json. Each recovered to one
   transfer with no reconciliation mismatches. Both interrupted requests returned 500.
-- Broker/cache fault cases, scoped load and Helm/Kubernetes validation remain pending.
+- Broker-stop recovery, ledger restart replay and forced duplicate delivery
+  passed; see broker-faults.md. The harness explicitly restarts the consumer.
+- Redis is unused by the receipt store; cache failover is not implemented.
+- Scoped load and Helm/Kubernetes validation remain pending.
 - Audit/upgrade inherited dependency versions before deployment.
 - No real bank rails, FX, holds, refunds, reversals, disputes, card data or compliance.
 

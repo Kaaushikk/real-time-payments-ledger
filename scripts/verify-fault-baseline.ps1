@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('baseline','database')][string]$Scenario = 'baseline',
+    [ValidateSet('baseline','database','broker')][string]$Scenario = 'baseline',
     [switch]$KeepStack,
     [string]$OutputPath = 'docs/results/fault-baseline.json'
 )
@@ -14,6 +14,9 @@ $userAgent = 'payments-ledger-fault-harness/1.0'
 $started = [DateTimeOffset]::UtcNow
 if ($Scenario -eq 'database' -and !$PSBoundParameters.ContainsKey('OutputPath')) {
     $OutputPath = 'docs/results/database-faults.json'
+}
+if ($Scenario -eq 'broker' -and !$PSBoundParameters.ContainsKey('OutputPath')) {
+    $OutputPath = 'docs/results/broker-faults.json'
 }
 $http = [Net.Http.HttpClient]::new()
 $http.Timeout = [TimeSpan]::FromSeconds(15)
@@ -229,6 +232,136 @@ function Run-DatabaseCase([string]$Kind, [long]$Amount) {
         recovery_attempts=$recoveryAttempts;recovery=$recovery;replay=$retry;before=$beforeCase;after=$afterCase}
 }
 
+function PublicationErrors {
+    $metrics = (Invoke-WebRequest -Uri 'http://127.0.0.1:18080/metrics' -TimeoutSec 5).Content
+    $match = [regex]::Match($metrics, '(?m)^ledger_outbox_publish_batches_total\{result="error"\} ([0-9.eE+\-]+)\s*$')
+    if (!$match.Success) { throw 'Publication error counter is missing' }
+    return [double]::Parse($match.Groups[1].Value,[Globalization.CultureInfo]::InvariantCulture)
+}
+function BrokerEvent([string]$TransactionId) {
+    $id = [guid]::Parse($TransactionId).ToString()
+    return (Sql "SELECT jsonb_build_object('event_id',id,'schema_version',(payload->>'schema_version')::int,'payload_hash',md5(payload::text),'pending',published_at IS NULL,'published_at',published_at) FROM outbox WHERE payload->>'transaction_id'='$id'" | ConvertFrom-Json)
+}
+function Assert-SameEvent($Before, $After) {
+    if (!$Before.event_id -or $Before.event_id -ne $After.event_id -or $Before.schema_version -ne 1 -or
+        $Before.schema_version -ne $After.schema_version -or $Before.payload_hash -ne $After.payload_hash) {
+        throw 'Event identity, version or payload changed during recovery'
+    }
+}
+function Assert-SameReceipt($First, $Retry) {
+    if (!$Retry.replayed -or $Retry.transaction_id -ne $First.transaction_id) { throw 'Expected the original durable receipt' }
+}
+function ConsumerDelivery([string]$EventId, [string]$Result) {
+    $lines = Invoke-Stack logs --no-color --tail 200 consumer
+    foreach ($line in $lines) {
+        $start = $line.IndexOf('{')
+        if ($start -lt 0) { continue }
+        $entry = $line.Substring($start) | ConvertFrom-Json
+        if ($entry.event_id -eq $EventId -and $entry.result -eq $Result) {
+            return [ordered]@{event_id=$entry.event_id;transaction_id=$entry.transaction_id;result=$entry.result
+                partition=$entry.partition;offset=$entry.offset}
+        }
+    }
+    return $null
+}
+function Run-BrokerCase {
+    Assert-ClearProxy
+    $beforeCase = Snapshot
+    $errorsBefore = PublicationErrors
+    $key = [guid]::NewGuid().ToString()
+    $stoppedAt = [DateTimeOffset]::UtcNow
+    Invoke-Stack stop kafka | Out-Host
+    $state = docker inspect --format '{{.State.Status}}' "$project-kafka-1"
+    if ($LASTEXITCODE -ne 0 -or $state -ne 'exited') { throw 'Kafka did not stop' }
+    try {
+        $first = Transfer 'broker-down-transfer' $aliceTokens.access_token $alice $bob $key 37
+        $retry = Transfer 'broker-down-replay' $aliceTokens.access_token $alice $bob $key 37
+        if ($first.replayed) { throw 'Fresh outage request unexpectedly replayed' }
+        Assert-SameReceipt $first $retry
+        $eventBefore = BrokerEvent $first.transaction_id
+        if (!$eventBefore.pending) { throw 'Event was acknowledged while the broker was stopped' }
+        Wait-Check { (PublicationErrors) -gt $errorsBefore } 'Publisher did not observe the broker outage'
+        $errorsDuringOutage = PublicationErrors
+        $during = Snapshot
+        Assert-TransferState $beforeCase $during 37 1
+        if ($during.pending_events -ne 1 -or $during.projections -ne $beforeCase.projections) {
+            throw 'Expected one pending event and no consumer effect during the outage'
+        }
+
+        # Prove recovery depends on PostgreSQL rather than the original process or Redis.
+        Invoke-Stack restart ledger | Out-Host
+        Wait-Ready 'http://127.0.0.1:18080/readyz'
+        $restartRetry = Transfer 'broker-down-ledger-restart-replay' $aliceTokens.access_token $alice $bob $key 37
+        Assert-SameReceipt $first $restartRetry
+        $afterRestart = Snapshot
+        Assert-TransferState $beforeCase $afterRestart 37 1
+        $eventAfterRestart = BrokerEvent $first.transaction_id
+        Assert-SameEvent $eventBefore $eventAfterRestart
+        if (!$eventAfterRestart.pending -or $afterRestart.pending_events -ne 1 -or
+            $afterRestart.projections -ne $beforeCase.projections) { throw 'Restart lost or prematurely delivered the event' }
+    } finally {
+        $brokerRestartAt = [DateTimeOffset]::UtcNow
+        Invoke-Stack start kafka | Out-Host
+    }
+    Wait-Check {
+        [bool]((Invoke-Stack logs --no-color --since $brokerRestartAt.ToString('o') kafka) -match 'Kafka Server started')
+    } 'Kafka did not become ready after restart'
+    $consumerState = docker inspect --format '{{.State.Status}}' "$project-consumer-1"
+    if ($LASTEXITCODE -ne 0) { throw 'Could not inspect consumer state' }
+    # Explicit recovery step: do not claim unattended consumer recovery from this experiment.
+    Invoke-Stack restart consumer | Out-Host
+    $targetCount = [long]$beforeCase.projections + 1
+    Wait-Check {
+        (Sql 'SELECT count(*) FROM consumed_transfers') -eq [string]$targetCount -and
+        (Sql 'SELECT count(*) FROM outbox WHERE published_at IS NULL') -eq '0'
+    } 'Broker recovery did not drain the event'
+    $recoveredAt = [DateTimeOffset]::UtcNow
+    $eventRecovered = BrokerEvent $first.transaction_id
+    Assert-SameEvent $eventBefore $eventRecovered
+    $recoveryRetry = Transfer 'broker-restored-replay' $aliceTokens.access_token $alice $bob $key 37
+    Assert-SameReceipt $first $recoveryRetry
+    $afterRecovery = Snapshot
+    Assert-TransferState $beforeCase $afterRecovery 37 1 -Drained
+    $script:processed = $null
+    Wait-Check {
+        $script:processed = ConsumerDelivery $eventBefore.event_id 'processed'
+        $null -ne $script:processed
+    } 'Original consumer delivery was not observed'
+
+    # Model publication success followed by loss of its database acknowledgement marker.
+    $eventId = [guid]::Parse($eventBefore.event_id).ToString()
+    $null = Sql "UPDATE outbox SET published_at=NULL WHERE id='$eventId'::uuid"
+    $script:duplicate = $null
+    Wait-Check {
+        $script:duplicate = ConsumerDelivery $eventId 'duplicate'
+        $null -ne $script:duplicate -and
+        (Sql 'SELECT count(*) FROM outbox WHERE published_at IS NULL') -eq '0'
+    } 'Consumer did not observe the forced duplicate publication'
+    $eventRedelivered = BrokerEvent $first.transaction_id
+    Assert-SameEvent $eventBefore $eventRedelivered
+    if ($eventRedelivered.published_at -eq $eventRecovered.published_at -or
+        $script:duplicate.partition -ne $script:processed.partition -or
+        $script:duplicate.offset -le $script:processed.offset -or
+        $script:duplicate.transaction_id -ne $first.transaction_id) { throw 'Distinct duplicate delivery was not proven' }
+    $afterDuplicate = Snapshot
+    foreach ($field in $afterRecovery.PSObject.Properties.Name) {
+        if ($afterRecovery.$field -ne $afterDuplicate.$field) { throw "Redelivery changed $field" }
+    }
+    $samePayload = Sql "SELECT count(*) FROM consumed_transfers c JOIN outbox o ON c.event_id=o.id WHERE o.id='$eventId'::uuid AND c.payload=o.payload"
+    if ($samePayload -ne '1') { throw 'Consumer stored an unexpected event payload' }
+    Assert-ClearProxy
+    Write-Host 'Verified broker outage, process restart replay and duplicate publication.'
+    return [ordered]@{
+        outage=@{stopped_at_utc=$stoppedAt.ToString('o');broker_restart_at_utc=$brokerRestartAt.ToString('o');drained_at_utc=$recoveredAt.ToString('o')
+            publisher_errors_before_restart=$errorsDuringOutage-$errorsBefore;consumer_state_before_explicit_restart=$consumerState.Trim();consumer_restarted_by_harness=$true}
+        redis=@{used_by_receipt_store=$false;service_in_harness=$false;note='PostgreSQL receipts remain authoritative; no Redis failover is implemented or claimed'}
+        requests=@($first,$retry,$restartRetry,$recoveryRetry)
+        event_before=$eventBefore;event_after_ledger_restart=$eventAfterRestart;event_recovered=$eventRecovered;event_redelivered=$eventRedelivered
+        processed_delivery=$script:processed;duplicate_delivery=$script:duplicate
+        before=$beforeCase;during_outage=$during;after_ledger_restart=$afterRestart;after_recovery=$afterRecovery;after_duplicate=$afterDuplicate
+    }
+}
+
 $existing = docker ps -aq --filter "label=com.docker.compose.project=$project"
 if ($LASTEXITCODE -ne 0) { throw 'Docker is unavailable' }
 if ($existing) { throw 'Inspect or remove the existing ledger-fault-check project before another run' }
@@ -299,6 +432,11 @@ try {
         )
         $result['scenario'] = 'database-faults'
         $result['cases'] = $cases
+        $result['final_after_cases'] = Snapshot
+    }
+    if ($Scenario -eq 'broker') {
+        $result['scenario'] = 'broker-faults'
+        $result['broker_case'] = Run-BrokerCase
         $result['final_after_cases'] = Snapshot
     }
 } finally {
