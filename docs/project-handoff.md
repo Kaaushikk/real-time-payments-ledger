@@ -179,7 +179,9 @@ accounts 404; invalid inputs 400; unexpected server errors use a generic body.
 - Async traces are connected in the local Kafka integration test and Jaeger.
 - Loki ingestion and Week 3 local acceptance are verified; see week-3-acceptance.md.
 - Telemetry uses bounded, best-effort queues. Production deployment and Week 4 experiments remain.
-- Existing load script uses one token for both directions; fix before use.
+- Load runner now uses separate owner tokens and validates receipts/replays.
+  Two local runs of 200 transfers + 50 retries with eight workers passed;
+  see load-testing.md. Short-run rates are not production capacity figures.
 - The no-fault Toxiproxy baseline is verified in docs/fault-baseline.md.
 - Database latency, timeout and in-flight disconnect cases passed locally;
   see database-faults.md and results/database-faults.json. Each recovered to one
@@ -187,7 +189,7 @@ accounts 404; invalid inputs 400; unexpected server errors use a generic body.
 - Broker-stop recovery, ledger restart replay and forced duplicate delivery
   passed; see broker-faults.md. The harness explicitly restarts the consumer.
 - Redis is unused by the receipt store; cache failover is not implemented.
-- Scoped load and Helm/Kubernetes validation remain pending.
+- Scoped load checks passed; Helm/Kubernetes validation and final demo remain pending.
 - Audit/upgrade inherited dependency versions before deployment.
 - No real bank rails, FX, holds, refunds, reversals, disputes, card data or compliance.
 

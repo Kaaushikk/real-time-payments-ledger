@@ -628,3 +628,31 @@ No application-code change was needed. The temporary Docker project was
 removed. PowerShell parsing, merged Compose and diff checks passed. Evidence
 and limitations are in broker-faults.md and results/broker-faults.json.
 Next is a scoped load experiment with correct user-token handling.
+
+## November 25, 2026 — scoped load runner and measured reconciliation
+
+Replaced the draft one-token load tool with a bounded two-owner workload.
+Both wallet identities are checked before measurement. The runner validates
+status/receipt content, confirms replay IDs, rejects duplicate IDs for new
+keys, bounds client timeouts and reports errors and nearest-rank latencies.
+Added targeted fake-server regression tests and a self-cleaning local wrapper
+that records machine resources and reconciles PostgreSQL and consumer effects.
+
+The first run passed 200 transfers plus 50 planned retries at eight workers.
+Review identified possible hidden HTTP/1 transport replay for rewindable POST
+bodies, so body rewind was disabled. An edit command first failed on quoting
+without modifying source; applying it from a file fixed that. The repeat also
+passed: 250 requests, 200 new transfers, 50 replays, zero failed requests,
+peak eight in flight. The original result is retained with clarified retry
+metadata. The repeat measured 1.237 seconds and
+202.03 completed client calls/s; p50/p95/p99
+were 18.218/109.279/616.181 ms.
+The differing tails between short runs are recorded, with no capacity or
+performance-change claim.
+
+Both databases ended with 200 transfers/receipts/events/projections, no pending
+events, unchanged user balances and no journal, posting or payload mismatches.
+All 16 acceptance checks passed and temporary projects were removed. Unit
+tests, vet, PowerShell parse, Compose and diff checks passed. No ledger/auth
+application-code change was required. Evidence is in load-testing.md and
+results/load-test*.json. Next is deployment validation.

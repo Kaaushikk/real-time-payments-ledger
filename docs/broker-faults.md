@@ -90,5 +90,5 @@ partition and requires all financial counts/balances to remain unchanged.
   the recorded publication-error count is only the pre-restart observation.
 - The first live run passed; no application-code correction was required.
   PowerShell parsing, merged Compose validation and diff checks passed.
-- Scoped load measurements, deployment validation and a clean-checkout
-  demonstration remain the next checkpoints.
+- Scoped load measurements are verified in [load-testing.md](load-testing.md).
+  Deployment validation and a clean-checkout demonstration remain.

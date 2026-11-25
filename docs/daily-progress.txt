@@ -697,3 +697,30 @@ Run: 2026-11-24T21:25:04.902384-08:00 to 2026-11-24T21:26:47.101751-08:00.
   checks passed. Prior commit 86548ff is pushed and GitHub CI passed.
 - This entry accompanies the broker-test commit; its push/CI outcome is
   tracked locally. No blocker remains. Next: scoped load measurements.
+
+======================================================================
+2026-11-25 - Scoped load experiment (W4-D4)
+Repeat setup/cleanup: 2026-11-25T13:15:09.512066-08:00 to 2026-11-25T13:16:16.055181-08:00.
+======================================================================
+- Fixed cmd/loadtest/main.go to use separate Alice/Bob tokens. Added account
+  ownership preflight, timeouts, validated receipts/replays, failure counts,
+  concurrency tracking and latency samples/percentiles. Makefile accepts flags.
+- Added cmd/loadtest/main_test.go and scripts/verify-load.ps1. The wrapper
+  records selected host/Docker specs and reconciles database/event state.
+- Commands: go test ./cmd/loadtest -count=1; go vet ./cmd/loadtest;
+  pwsh -File scripts/verify-load.ps1 (200 unique, 8 workers, replay every 4).
+- First workload passed. Review found possible hidden HTTP/1 POST transport
+  retries. A quoting error stopped the initial edit before any source change;
+  applied the correction from a file, disabled body rewind and repeated.
+- Repeat: 250 calls = 200 new + 50 replays; peak 8 in flight; 0 failures.
+  Timed interval 1.237s, 202.03 client calls/s;
+  p50/p95/p99 18.218/109.279/616.181 ms.
+- Both runs passed all 16 checks: 200 transfers/receipts/events/projections,
+  no pending events or incomplete receipts, no negative users, matching
+  balances/journal entries and projection payloads. User balances unchanged.
+- Kept both results; documented differing tails and small-workload limits in
+  docs/load-testing.md. No performance improvement/capacity claim is made.
+- Temporary stacks removed. Unit tests, vet, PowerShell parse, Compose and
+  diff checks passed. Prior d473454 is pushed with passing CI. This entry
+  accompanies the load checkpoint; push/CI outcome is tracked privately.
+- No blocker remains. Next: deployment validation and then clean-checkout demo.

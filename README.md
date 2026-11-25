@@ -2,7 +2,7 @@
 
 A four-week Go project for correct simulated transfers under retries and
 concurrency, with event delivery and full observability planned next.
-**Status: Weeks 1–3 correctness, API/identity, event delivery and telemetry acceptance verified locally. Week 4 failure experiments and delivery remain.**
+**Status: Weeks 1–3 acceptance plus Week 4 database/broker faults and a scoped load experiment verified locally. Deployment validation and final delivery remain.**
 
 Read the [complete handoff](docs/project-handoff.md),
 [four-week plan](docs/four-week-plan.md), and [development log](docs/development-log.md).
@@ -292,8 +292,17 @@ Run `pwsh -File scripts/verify-fault-baseline.ps1 -Scenario broker` to stop
 Kafka, verify pending-event durability and ledger restart replay, then restore
 Kafka and check a forced duplicate publication. See
 [broker recovery evidence and limits](docs/broker-faults.md). Redis is unused
-by the receipt store; no cache failover is claimed. Scoped load/deployment
-validation remains.
+by the receipt store; no cache failover is claimed.
+
+### Scoped load experiment
+
+Run `pwsh -File scripts/verify-load.ps1`. The isolated local workload sends
+200 unique transfers with eight workers and 50 planned replays, using each
+source wallet's owner token. Both recorded runs passed receipt, event and
+financial reconciliation checks with no failed requests. See
+[the measured workload, environment and limits](docs/load-testing.md).
+These short runs do not establish production capacity. Deployment validation
+and the clean-checkout demonstration remain.
 
 ## Remaining milestones
 

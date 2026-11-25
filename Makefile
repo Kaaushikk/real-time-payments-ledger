@@ -1,4 +1,4 @@
-.PHONY: test tidy run compose proto
+.PHONY: test tidy run compose proto loadtest
 
 PROTO_OUT ?= .
 
@@ -18,7 +18,7 @@ compose:
 	docker compose up --build
 
 loadtest:
-	FROM_ACCOUNT=$(FROM) TO_ACCOUNT=$(TO) go run ./cmd/loadtest
+	FROM_ACCOUNT=$(FROM) TO_ACCOUNT=$(TO) go run ./cmd/loadtest $(LOAD_ARGS)
 
 chaos:
 	go run ./cmd/chaos
