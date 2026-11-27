@@ -139,5 +139,6 @@ diff checks passed locally. Full PostgreSQL/race checks run in GitHub CI.
 The two runs are too short to establish stable throughput, sustained resource
 behavior or a service-level latency guarantee. They do not cover thousands of
 wallets, open-loop arrival rates, long-duration saturation, or failures under
-load. Broader performance work is a stretch goal. Deployment validation and
-the clean-checkout demonstration remain the next checkpoints.
+load. Broader performance work is a stretch goal. Offline deployment checks
+are recorded in [deployment-validation.md](deployment-validation.md). A live
+Kubernetes rollout is unverified; the clean-checkout demonstration remains.

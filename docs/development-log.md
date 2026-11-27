@@ -656,3 +656,34 @@ All 16 acceptance checks passed and temporary projects were removed. Unit
 tests, vet, PowerShell parse, Compose and diff checks passed. No ledger/auth
 application-code change was required. Evidence is in load-testing.md and
 results/load-test*.json. Next is deployment validation.
+
+## November 26, 2026 — deployment manifests and readiness
+
+The existing manifests omitted the consumer, used unverified image references,
+mixed fixed selectors between releases and used /healthz for readiness. The
+chart now renders three Deployments and two internal Services, scopes names
+and selectors by release, requires an existing runtime Secret and supplied
+image tag, and rejects invalid/unknown values. Added resource/security settings
+and removed unused Redis wiring. The plain manifest is a checked generated
+snapshot. The consumer has no invented HTTP probe or signing-key access.
+
+Added database-backed /readyz to auth and selected /readyz for both API
+readiness probes. Startup/liveness remain process checks. A real PostgreSQL
+test confirmed 200 readiness with a reachable pool, then 503 with that pool
+closed while both APIs' liveness stayed 200. The full local PostgreSQL suite
+and vet passed. This does not simulate Kubernetes probe handling.
+
+Helm was absent and Docker was stopped. Started Docker, downloaded portable
+Helm 4.3.2 and kubeconform 0.8.0 from official releases and verified published
+checksums. Strict Helm lint passed; two variants each had five valid resources
+against Kubernetes 1.36.0 schemas, with none skipped. Seven invalid value sets,
+selector/Secret/resource/security policies, a regressed-readiness guard and
+snapshot comparison passed. Added the same validation to CI. Fingerprints
+normalize text line endings. An initial batch replacement was rejected before
+changing files; splitting the replacement resolved that editing issue.
+
+kubectl has no configured context even after Docker startup. No live rollout
+was attempted and none is claimed; dependencies/images/Secret still need a
+cluster. Temporary test PostgreSQL resources were removed. Results, limits
+and operator instructions are in deployment-validation.md. Next is the
+clean-checkout demonstration and final acceptance review.

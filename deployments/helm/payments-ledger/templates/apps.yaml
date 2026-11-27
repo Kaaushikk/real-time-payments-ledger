@@ -1,117 +1,115 @@
+{{- $secret := required "existingSecret must name a pre-created runtime Secret" .Values.existingSecret -}}
+{{- $tag := required "image.tag must identify images you have built" .Values.image.tag -}}
+{{- range $name := list "ledger" "auth" "consumer" }}
+{{- $http := 8080 -}}{{- $grpc := 9090 -}}
+{{- if eq $name "auth" -}}{{- $http = 8081 -}}{{- $grpc = 9091 -}}{{- end }}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ledger
+  name: {{ $.Release.Name }}-{{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: payments-ledger
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/component: {{ $name }}
 spec:
-  replicas: {{ .Values.replicaCount.ledger }}
+  replicas: {{ index $.Values.replicaCount $name }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
   selector:
-    matchLabels: { app: ledger }
+    matchLabels:
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+      app.kubernetes.io/component: {{ $name }}
   template:
     metadata:
-      labels: { app: ledger }
+      labels:
+        app.kubernetes.io/name: payments-ledger
+        app.kubernetes.io/instance: {{ $.Release.Name }}
+        app.kubernetes.io/component: {{ $name }}
     spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
       containers:
-        - name: ledger
-          image: "{{ .Values.image.registry }}/ledger:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+        - name: {{ $name }}
+          image: {{ printf "%s/%s:%s" $.Values.image.registry $name $tag | quote }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          {{- if ne $name "consumer" }}
           ports:
-            - containerPort: 8080
-            - containerPort: 9090
+            - {name: http, containerPort: {{ $http }}}
+            - {name: grpc, containerPort: {{ $grpc }}}
+          {{- end }}
           env:
-            - name: HTTP_ADDR
-              value: ":8080"
-            - name: GRPC_ADDR
-              value: ":9090"
             - name: DATABASE_URL
               valueFrom:
-                secretKeyRef: { name: ledger-secrets, key: database-url }
-            - name: REDIS_ADDR
+                secretKeyRef: {name: {{ $secret }}, key: database-url}
+            {{- if ne $name "consumer" }}
+            - {name: HTTP_ADDR, value: {{ printf ":%d" $http | quote }}}
+            - {name: GRPC_ADDR, value: {{ printf ":%d" $grpc | quote }}}
+            - name: JWT_SIGNING_KEY
               valueFrom:
-                secretKeyRef: { name: ledger-secrets, key: redis-addr }
+                secretKeyRef: {name: {{ $secret }}, key: jwt-signing-key}
+            - {name: JWT_ISSUER, value: {{ $.Values.env.jwtIssuer | quote }}}
+            - {name: JWT_AUDIENCE, value: {{ $.Values.env.jwtAudience | quote }}}
+            {{- end }}
+            {{- if eq $name "auth" }}
+            - {name: AUTH_PUBLIC_URL, value: {{ $.Values.env.authPublicURL | quote }}}
+            - {name: ALLOW_DEV_TOKEN, value: "false"}
+            {{- else }}
             - name: KAFKA_BROKERS
               valueFrom:
-                secretKeyRef: { name: ledger-secrets, key: kafka-brokers }
-            - name: JWT_SIGNING_KEY
-              valueFrom:
-                secretKeyRef: { name: ledger-secrets, key: jwt-signing-key }
-            - name: JWT_ISSUER
-              value: {{ .Values.env.jwtIssuer | quote }}
-            - name: JWT_AUDIENCE
-              value: {{ .Values.env.jwtAudience | quote }}
-            - name: KAFKA_TOPIC
-              value: {{ .Values.env.kafkaTopic | quote }}
-            - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: otel-collector:4317
+                secretKeyRef: {name: {{ $secret }}, key: kafka-brokers}
+            - {name: KAFKA_TOPIC, value: {{ $.Values.env.kafkaTopic | quote }}}
+            {{- end }}
+            {{- if eq $name "consumer" }}
+            - {name: KAFKA_CONSUMER_GROUP, value: {{ $.Values.env.consumerGroup | quote }}}
+            {{- end }}
+            - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: {{ $.Values.env.otelEndpoint | quote }}}
           resources:
-            {{- toYaml .Values.resources.ledger | nindent 12 }}
+            {{- toYaml (index $.Values.resources $name) | nindent 12 }}
+          {{- if ne $name "consumer" }}
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 2
+            timeoutSeconds: 3
+            failureThreshold: 30
           livenessProbe:
-            httpGet: { path: /healthz, port: 8080 }
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 3
           readinessProbe:
-            httpGet: { path: /healthz, port: 8080 }
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 3
+          {{- end }}
+{{- if ne $name "consumer" }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: ledger
+  name: {{ $.Release.Name }}-{{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: payments-ledger
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/component: {{ $name }}
 spec:
-  selector: { app: ledger }
-  ports:
-    - name: http
-      port: 8080
-    - name: grpc
-      port: 9090
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: auth
-spec:
-  replicas: {{ .Values.replicaCount.auth }}
+  type: ClusterIP
   selector:
-    matchLabels: { app: auth }
-  template:
-    metadata:
-      labels: { app: auth }
-    spec:
-      containers:
-        - name: auth
-          image: "{{ .Values.image.registry }}/auth:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports:
-            - containerPort: 8081
-            - containerPort: 9091
-          env:
-            - name: HTTP_ADDR
-              value: ":8081"
-            - name: GRPC_ADDR
-              value: ":9091"
-            - name: DATABASE_URL
-              valueFrom:
-                secretKeyRef: { name: ledger-secrets, key: database-url }
-            - name: JWT_SIGNING_KEY
-              valueFrom:
-                secretKeyRef: { name: ledger-secrets, key: jwt-signing-key }
-            - name: JWT_ISSUER
-              value: {{ .Values.env.jwtIssuer | quote }}
-            - name: JWT_AUDIENCE
-              value: {{ .Values.env.jwtAudience | quote }}
-            - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: otel-collector:4317
-          resources:
-            {{- toYaml .Values.resources.auth | nindent 12 }}
-          livenessProbe:
-            httpGet: { path: /healthz, port: 8081 }
-          readinessProbe:
-            httpGet: { path: /healthz, port: 8081 }
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: auth
-spec:
-  selector: { app: auth }
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/component: {{ $name }}
   ports:
-    - name: http
-      port: 8081
-    - name: grpc
-      port: 9091
+    - {name: http, port: {{ $http }}, targetPort: http}
+    - {name: grpc, port: {{ $grpc }}, targetPort: grpc}
+{{- end }}
+{{- end }}

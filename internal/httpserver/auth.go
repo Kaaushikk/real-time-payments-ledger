@@ -26,6 +26,13 @@ func (a AuthAPI) Handler() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 	mux.HandleFunc("GET /oauth/authorize", a.authorize)
+	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+		if err := a.Auth.Ready(r.Context()); err != nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ready"})
+	})
 	mux.HandleFunc("POST /oauth/login", a.login)
 	mux.HandleFunc("POST /oauth/token", a.token)
 	mux.HandleFunc("POST /oauth/introspect", a.introspect)

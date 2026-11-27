@@ -2,7 +2,7 @@
 
 A four-week Go project for correct simulated transfers under retries and
 concurrency, with event delivery and full observability planned next.
-**Status: Weeks 1–3 acceptance plus Week 4 database/broker faults and a scoped load experiment verified locally. Deployment validation and final delivery remain.**
+**Status: Correctness, APIs, events/telemetry, fault/load experiments and offline deployment checks verified locally. Live Kubernetes rollout is unverified; clean-checkout demo and final review remain.**
 
 Read the [complete handoff](docs/project-handoff.md),
 [four-week plan](docs/four-week-plan.md), and [development log](docs/development-log.md).
@@ -301,8 +301,17 @@ Run `pwsh -File scripts/verify-load.ps1`. The isolated local workload sends
 source wallet's owner token. Both recorded runs passed receipt, event and
 financial reconciliation checks with no failed requests. See
 [the measured workload, environment and limits](docs/load-testing.md).
-These short runs do not establish production capacity. Deployment validation
-and the clean-checkout demonstration remain.
+These short runs do not establish production capacity.
+
+### Deployment validation
+
+The Helm chart now covers ledger, auth and consumer with explicit image/Secret
+configuration, resource limits and database-aware API readiness. Two render
+variants passed Kubernetes schema checks, seven invalid configurations were
+rejected, and a real-PostgreSQL test checked readiness versus liveness.
+See [deployment evidence, reproduction and runtime prerequisites](docs/deployment-validation.md).
+No Kubernetes context is configured locally, so a live rollout was not performed.
+The clean-checkout demonstration and final review remain.
 
 ## Remaining milestones
 
@@ -315,7 +324,7 @@ session. Previously issued access tokens remain valid until expiry. The demo
 uses shared JWT signing configuration and a plaintext gRPC connection for
 local development. Keep the demo auth and credentials local.
 
-Load and failure experiments, deployment validation and final delivery are later checkpoints.
+Fault/load results and offline deployment checks are recorded above. Live Kubernetes rollout is unverified; the clean-checkout demo and final review remain.
 
 No claimed 1,000-user capacity, 100% trace coverage, passed chaos count, cloud
 deployment or CI duration. Verified outcomes belong in the development log.

@@ -6,6 +6,24 @@ on:
 permissions:
   contents: read
 jobs:
+  deployment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install portable deployment validators
+        run: |
+          bash scripts/install-deployment-tools.sh "$RUNNER_TEMP/ledger-tools"
+          echo "$RUNNER_TEMP/ledger-tools" >> "$GITHUB_PATH"
+          python -m pip install PyYAML==6.0.3
+      - name: Check chart, Kubernetes schemas and snapshot
+        run: python scripts/verify-deployment.py --output "$RUNNER_TEMP/deployment-validation.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deployment-validation
+          path: ${{ runner.temp }}/deployment-validation.json
   test:
     runs-on: ubuntu-latest
     services:

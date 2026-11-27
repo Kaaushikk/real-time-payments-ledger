@@ -1,0 +1,266 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "existingSecret",
+    "replicaCount",
+    "image",
+    "env",
+    "resources"
+  ],
+  "properties": {
+    "existingSecret": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 253,
+      "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+    },
+    "replicaCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ledger",
+        "auth",
+        "consumer"
+      ],
+      "properties": {
+        "ledger": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        },
+        "auth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        },
+        "consumer": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        }
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "registry",
+        "tag",
+        "pullPolicy"
+      ],
+      "properties": {
+        "registry": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9./:_-]*$"
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$",
+          "not": {
+            "enum": [
+              "latest"
+            ]
+          }
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
+      }
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "jwtIssuer",
+        "jwtAudience",
+        "authPublicURL",
+        "kafkaTopic",
+        "consumerGroup",
+        "otelEndpoint"
+      ],
+      "properties": {
+        "jwtIssuer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "jwtAudience": {
+          "type": "string",
+          "minLength": 1
+        },
+        "authPublicURL": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kafkaTopic": {
+          "type": "string",
+          "minLength": 1
+        },
+        "consumerGroup": {
+          "type": "string",
+          "minLength": 1
+        },
+        "otelEndpoint": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ledger",
+        "auth",
+        "consumer"
+      ],
+      "properties": {
+        "ledger": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "requests",
+            "limits"
+          ],
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cpu",
+                "memory"
+              ],
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+m?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*(Mi|Gi)$"
+                }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cpu",
+                "memory"
+              ],
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+m?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*(Mi|Gi)$"
+                }
+              }
+            }
+          }
+        },
+        "auth": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "requests",
+            "limits"
+          ],
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cpu",
+                "memory"
+              ],
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+m?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*(Mi|Gi)$"
+                }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cpu",
+                "memory"
+              ],
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+m?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*(Mi|Gi)$"
+                }
+              }
+            }
+          }
+        },
+        "consumer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "requests",
+            "limits"
+          ],
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cpu",
+                "memory"
+              ],
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+m?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*(Mi|Gi)$"
+                }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cpu",
+                "memory"
+              ],
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+m?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*(Mi|Gi)$"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

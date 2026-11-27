@@ -1,0 +1,39 @@
+{
+  "started_at_utc": "2026-11-27T07:56:18.871000+00:00",
+  "finished_at_utc": "2026-11-27T07:56:20.905870+00:00",
+  "helm": "v4.3.2+g8346aaa",
+  "kubeconform": "v0.8.0",
+  "kubernetes_schema_version": "1.36.0",
+  "helm_lint": "passed",
+  "valid_variants": 2,
+  "schema_validation": [
+    {
+      "variant": "base",
+      "valid": 5,
+      "invalid": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "variant": "variant",
+      "valid": 5,
+      "invalid": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  ],
+  "rejected_values": [
+    "missing-required-values",
+    "latest-tag",
+    "negative-replicas",
+    "invalid-secret",
+    "invalid-pull-policy",
+    "unknown-setting",
+    "negative-cpu"
+  ],
+  "probe_regression_guard": "passed",
+  "snapshot_matches": true,
+  "chart_sha256": "a78d0bd05b7ff46c4375aa945223b39cd61149f75d8bcba7d64bbe09ff71a0e5",
+  "snapshot_sha256": "59657448d856d7b69a4648ca5f6359c92ad2c3438e376d8e2fcb77f6e71dab15",
+  "rollout": "not performed by this offline validator; a running cluster and dependencies are required"
+}

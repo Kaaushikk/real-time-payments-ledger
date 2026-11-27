@@ -1,0 +1,5 @@
+# Render-only example; this does not create a Secret or publish images.
+existingSecret: ledger-runtime
+image:
+  registry: payments-ledger
+  tag: local-check

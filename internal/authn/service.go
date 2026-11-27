@@ -39,6 +39,13 @@ func New(pool *pgxpool.Pool, cfg config.Config) *Service {
 	return &Service{pool: pool, cfg: cfg}
 }
 
+// Ready checks the database dependency without changing liveness behavior.
+func (s *Service) Ready(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	return s.pool.Ping(ctx)
+}
+
 type User struct {
 	ID           uuid.UUID
 	Email        string

@@ -724,3 +724,31 @@ Repeat setup/cleanup: 2026-11-25T13:15:09.512066-08:00 to 2026-11-25T13:16:16.05
   diff checks passed. Prior d473454 is pushed with passing CI. This entry
   accompanies the load checkpoint; push/CI outcome is tracked privately.
 - No blocker remains. Next: deployment validation and then clean-checkout demo.
+
+======================================================================
+2026-11-26 - Deployment validation (W4-D5; session started 23:45 Pacific)
+Offline validation: 2026-11-27T07:56:18.871000+00:00 to 2026-11-27T07:56:20.905870+00:00.
+======================================================================
+- Reworked Helm values/templates/schema and generated k8s/apps.yaml. Added
+  the consumer, release-specific selectors, explicit image/Secret requirements,
+  CPU/memory settings and non-root/read-only container configuration.
+- Added auth /readyz and database-aware API readiness; retained /healthz
+  for liveness/startup. Consumer has no HTTP server or fake HTTP probes.
+- Started Docker Desktop. Installed ignored portable Helm 4.3.2 and
+  kubeconform 0.8.0 after official checksum verification.
+- Ran strict helm lint and scripts/verify-deployment.py. Both variants passed
+  five-resource schema checks; seven bad value sets were rejected. Checked
+  selectors, ports, Secret keys, resources, security settings and snapshot.
+- Ran TestReadinessReflectsDatabaseWithoutFailingLiveness against PostgreSQL:
+  readiness 200 with a live pool, 503 after pool close, liveness still 200.
+- Commands: go test ./... -count=1 -timeout 180s; go vet ./...;
+  python scripts/verify-deployment.py with the verified tool paths.
+  All passed. Temporary ledger-deploy-check PostgreSQL resources removed.
+- An initial batch edit was rejected without changing files; split the file
+  replacement. Normalized chart hashes for Windows/Linux line endings.
+- kubectl reports no contexts. Live rollout was not performed; no cluster,
+  public development auth or paid cloud resources were provisioned.
+- Added repeatable deployment CI, docs/deployment-validation.md and actual
+  results JSON; updated README and handoff. Prior d244540 is pushed with
+  passing CI. This checkpoint's push/CI is tracked locally after commit.
+- Next: clean-checkout demo/runbook and final acceptance/reflection.

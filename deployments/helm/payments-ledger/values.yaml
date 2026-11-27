@@ -1,21 +1,24 @@
-replicaCount:
-  ledger: 2
-  auth: 1
-
+# Application workloads only. PostgreSQL, Kafka and telemetry are external.
+existingSecret: ""
+replicaCount: {ledger: 1, auth: 1, consumer: 1}
 image:
-  registry: ghcr.io/beybl/realtime-payments-ledger
-  tag: latest
+  registry: payments-ledger
+  tag: ""
   pullPolicy: IfNotPresent
-
 env:
-  jwtIssuer: http://auth:8081
+  jwtIssuer: http://localhost:8081
   jwtAudience: ledger-api
+  authPublicURL: http://localhost:8081
   kafkaTopic: ledger.transactions
-
+  consumerGroup: ledger-transfer-projection-v1
+  otelEndpoint: otel-collector:4317
 resources:
   ledger:
-    requests: { cpu: 100m, memory: 128Mi }
-    limits: { cpu: "1", memory: 512Mi }
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 1000m, memory: 512Mi}
   auth:
-    requests: { cpu: 50m, memory: 64Mi }
-    limits: { cpu: 500m, memory: 256Mi }
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+  consumer:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 500m, memory: 256Mi}

@@ -189,7 +189,11 @@ accounts 404; invalid inputs 400; unexpected server errors use a generic body.
 - Broker-stop recovery, ledger restart replay and forced duplicate delivery
   passed; see broker-faults.md. The harness explicitly restarts the consumer.
 - Redis is unused by the receipt store; cache failover is not implemented.
-- Scoped load checks passed; Helm/Kubernetes validation and final demo remain pending.
+- Scoped load and offline Helm/Kubernetes schema checks passed; see deployment-validation.md.
+- The chart includes the consumer, release-scoped selectors, Secret references,
+  resources/security settings and API readiness. Auth now exposes /readyz.
+- No Kubernetes context is configured, so live rollout remains unverified.
+  Clean-checkout demo and final review are next.
 - Audit/upgrade inherited dependency versions before deployment.
 - No real bank rails, FX, holds, refunds, reversals, disputes, card data or compliance.
 
